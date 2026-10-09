@@ -1,0 +1,763 @@
+/* ===========================================================================
+ * Metro 设计语言层（Android 宿主专用）
+ * ===========================================================================
+ *
+ * 为什么单独一个文件、而不是改造 styles.css：
+ *   桌面端（Windows 11 风格）与移动端（Metro 风格）要同时存在且互不影响。
+ *   本文件所有规则都限定在 `:root[data-aijob-host='android']` 之下，
+ *   桌面端不设置这个属性，因此下面每一行对桌面端都是死代码。
+ *
+ * 为什么能用 CSS 重绘而不改写页面：
+ *   实测本项目 Tailwind v4 的产物里，工具类全部指向设计令牌，例如
+ *       .bg-indigo-600  { background-color: var(--color-indigo-600); }
+ *       .rounded-lg     { border-radius: var(--radius-lg); }
+ *   所以覆盖令牌 = 重绘全站。8 个页面、5000+ 行 JSX 一行都不用动。
+ *   唯一的例外是 `.rounded-full`（产物里是 `border-radius: 3.40282e38px` 字面量，
+ *   不经过令牌），因此它天然保持圆形 —— 开关、圆形描边不会被我影响。
+ *
+ * 令牌覆盖的机制依赖：
+ *   本文件在 main.tsx 里于 styles.css 之后导入，且这些规则不落在任何 @layer 里；
+ *   未分层的规则在层叠优先级上高于 Tailwind 的 @layer utilities / @layer theme，
+ *   所以不需要 !important 即可生效。
+ *
+ * Metro 的六条视觉纪律（对照下文各段实现）：
+ *   1. 大色块：强调色与磁贴全部用饱和纯色实心块，不做渐变
+ *   2. 重排版：用字号与字重建立层级，小字距标签 + 超大轻字重标题
+ *   3. 留白组织内容：靠间距分组，弱化 1px 分割线
+ *   4. 零修饰：圆角归零、阴影清空、无拟物
+ *   5. 内容即控件：磁贴本身就是按钮，数字是可读信息
+ *   6. 有情感的动效：状态切换有短促的位移/淡入，而不是匀速淡出
+ */
+
+/* ---------------------------------------------------------------------------
+ * 1. 调色板
+ * ---------------------------------------------------------------------------
+ * 保留 Tailwind 的族名（slate / indigo / emerald / rose / sky / amber），
+ * 只换色值 —— 这样业务代码里的类名一个都不用改。
+ * 色值取自微软 Metro 官方色板（Metro Blue / Cobalt / Green / Amber / Crimson / Cyan）。
+ */
+
+:root[data-aijob-host='android'] {
+  /* -- 字体：Metro 的原配字体是 Segoe UI，但 Segoe 只存在于 Windows。
+   *    Roboto 是最接近的同代几何无衬线体，也是 Android 的原生字体，
+   *    因此在 Android 上用 Roboto 才是「忠于 Metro 精神」而非「字面照搬」。 */
+  --aijob-font: 'Roboto', 'Noto Sans SC', 'Source Han Sans SC', 'HarmonyOS Sans SC', 'PingFang SC',
+    'Microsoft YaHei', system-ui, sans-serif;
+
+  /* -- 强调色：Metro Blue -------------------------------------------------- */
+  --color-indigo-50: #e8f1fe;
+  --color-indigo-100: #d0e2fd;
+  --color-indigo-200: #a3c5fa;
+  --color-indigo-300: #6da4f7;
+  --color-indigo-400: #3d86f5;
+  --color-indigo-500: #1069f0;
+  --color-indigo-600: #0050ef;
+  --color-indigo-700: #0041c2;
+  --color-indigo-800: #003195;
+  --color-indigo-900: #00246e;
+
+  /* -- 中性色：Metro 的灰偏冷、对比强，正文接近纯黑 ------------------------ */
+  --color-slate-50: #f7f8fa;
+  --color-slate-100: #eef0f3;
+  --color-slate-200: #dfe3e8;
+  --color-slate-300: #c6ccd4;
+  --color-slate-400: #9ba3ad;
+  --color-slate-500: #6f7780;
+  --color-slate-600: #565d66;
+  --color-slate-700: #3d434a;
+  --color-slate-800: #2a2f35;
+  --color-slate-900: #1c2024;
+
+  /* -- 成功：Metro Green -------------------------------------------------- */
+  --color-emerald-50: #eef7e6;
+  --color-emerald-100: #dcefd0;
+  --color-emerald-200: #b8dfa1;
+  --color-emerald-300: #8fca6d;
+  --color-emerald-400: #74bb4a;
+  --color-emerald-500: #60a917;
+  --color-emerald-600: #528f12;
+  --color-emerald-700: #3f6f0c;
+
+  /* -- 警告：Metro Amber -------------------------------------------------- */
+  --color-amber-50: #fef5e4;
+  --color-amber-100: #fceac7;
+  --color-amber-200: #f9d48d;
+  --color-amber-300: #f5b842;
+  --color-amber-400: #f0a30a;
+  --color-amber-500: #d98c00;
+  --color-amber-600: #b8730a;
+  --color-amber-700: #8f5a08;
+
+  /* -- 危险：Metro Crimson ------------------------------------------------ */
+  --color-rose-50: #fdeaea;
+  --color-rose-100: #fbd5d6;
+  --color-rose-200: #f6a9ac;
+  --color-rose-300: #f07d80;
+  --color-rose-400: #ea4a4f;
+  --color-rose-500: #e51400;
+  --color-rose-600: #c41100;
+  --color-rose-700: #9c0e00;
+
+  /* -- 信息：Metro Cyan --------------------------------------------------- */
+  --color-sky-50: #e8f6fd;
+  --color-sky-100: #d1edfb;
+  --color-sky-200: #a3dbf7;
+  --color-sky-300: #6cc6f2;
+  --color-sky-400: #40b4e9;
+  --color-sky-500: #1ba1e2;
+  --color-sky-600: #1684bb;
+  --color-sky-700: #116a97;
+
+  /* -- 圆角归零：Metro 没有圆角 ------------------------------------------- */
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+
+  /* -- 外壳自有变量（不覆盖 Tailwind，供 .metro-* 使用） ------------------ */
+  --metro-accent: #0050ef;
+  --metro-accent-dark: #0041c2;
+  /*
+   * SubTab 专用底色：比一级 Tab 深一档的蓝。
+   *
+   * 为什么要换色而不是靠字号差区分层级（v0.4 第四轮用的是字号差）：
+   *   字号差要用户能分辨「30px 和 20px」才成立，而弱视用户或小屏下很难分辨；
+   *   色相差在深浅两档蓝上是明确的，而且**不随选中项变化** ——
+   *   整栏同色，层级靠底色区分，位置靠下划线区分，两件事互不干扰。
+   */
+  --metro-accent-subtab: #0043cc;
+  --metro-ink: #1c2024;
+  --metro-surface: #ffffff;
+  --metro-chrome: #f0f2f5;
+  --metro-hairline: #dfe3e8;
+
+  /* Metro 官方磁贴色板 */
+  --metro-c-blue: #0050ef;
+  --metro-c-teal: #00aba9;
+  --metro-c-green: #60a917;
+  --metro-c-lime: #a4c400;
+  --metro-c-amber: #f0a30a;
+  --metro-c-orange: #fa6800;
+  --metro-c-crimson: #e51400;
+  --metro-c-magenta: #d80073;
+  --metro-c-purple: #6a00ff;
+  --metro-c-cobalt: #0041c2;
+  --metro-c-slate: #565d66;
+
+  /* 导航图标：桌面端是写死的 indigo/slate 十六进制，
+   * 这里用带默认值的变量替换，桌面端取不到变量时自动回落到原色值。
+   * 移动端图标画在强调色色块上，因此未选中态是半透明白而不是灰色 ——
+   * 灰色压在蓝色上会显脏。 */
+  --aijob-icon-active: #ffffff;
+  --aijob-icon-idle: rgba(255, 255, 255, 0.62);
+
+  color-scheme: light;
+}
+
+/* ---------------------------------------------------------------------------
+ * 2. 零阴影
+ * ---------------------------------------------------------------------------
+ * Tailwind v4 的阴影工具类写法是
+ *     .shadow-sm { --tw-shadow: <值>; box-shadow: ...var(--tw-shadow); }
+ * 所以把 --tw-shadow 置零即可去阴影，而且**不会**碰掉 focus:ring 的可见性
+ * —— ring 走的是同一个 box-shadow 复合声明里的 --tw-ring-shadow，是另一个变量。
+ * 这比直接写 box-shadow:none 更安全：后者会在带阴影又有 focus ring 的元素上
+ * 把键盘焦点圈一起抹掉。
+ */
+:root[data-aijob-host='android'] [class*='shadow-'] {
+  --tw-shadow: 0 0 #0000;
+}
+
+/* ---------------------------------------------------------------------------
+ * 3. 基础排印与移动端人体工学
+ * ---------------------------------------------------------------------------
+ */
+:root[data-aijob-host='android'] body {
+  background: var(--metro-surface);
+  color: var(--metro-ink);
+  /* 关闭 iOS/Android WebView 的自动放大，保证字号完全由设计决定 */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  /* 去掉点按时的蓝色高亮块 */
+  -webkit-tap-highlight-color: transparent;
+  /* 移动端没有 hover，滚动到边界时不要「橡皮筋」带动整页 */
+  overscroll-behavior: none;
+}
+
+/* 可点元素：去掉 300ms 点按延迟 */
+:root[data-aijob-host='android'] button,
+:root[data-aijob-host='android'] [role='tab'],
+:root[data-aijob-host='android'] select {
+  touch-action: manipulation;
+}
+
+/* Metro 的分割线要「几乎看不见」，靠留白区分区块。
+ * 业务代码里用了大量 border-slate-200 / divide-slate-100，这里统一减淡。 */
+:root[data-aijob-host='android'] .border-slate-200,
+:root[data-aijob-host='android'] .border-slate-100 {
+  border-color: var(--metro-hairline);
+}
+
+/* 卡片类容器改成「实心块 + 无边框」，这是 Metro 与 Material 最直观的区别 */
+:root[data-aijob-host='android'] .rounded-xl.border.bg-white {
+  border-color: transparent;
+  background: var(--metro-chrome);
+}
+
+/* ---------------------------------------------------------------------------
+ * 4. 应用外壳
+ * ---------------------------------------------------------------------------
+ */
+.metro-app {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  background: var(--metro-surface);
+  /*
+   * v0.4：必须裁掉横向溢出。
+   * 导航按阶段分组后，每个组内部仍然是横向可扫的页签行，
+   * 而页签总宽必然超过 393px。没有这一行时，溢出的部分会把
+   * body 撑宽 —— 整个页面（连头部色块一起）都能左右拖动，
+   * 这是移动端最容易被当成「App 坏了」的观感问题。
+   */
+  overflow-x: hidden;
+  /* 内部各层自己负责滚动，外层只做裁剪 */
+  max-width: 100vw;
+}
+
+/* -- 大色块头部：Metro 的账头就是一块饱和纯色，标题直接在色块上 -------------- */
+.metro-header {
+  flex: none;
+  background: var(--metro-accent);
+  /* 状态栏高度由 WebView 的 safe-area 提供；没有则退化为普通内边距 */
+  padding: calc(env(safe-area-inset-top, 0px) + 16px) var(--metro-gutter) 0;
+  color: #ffffff;
+}
+
+.metro-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  /* Metro 的小字距标签：全大写 + 放大字距，用来做「身份行」 */
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.metro-brand__mark {
+  display: inline-flex;
+  height: 20px;
+  min-width: 20px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  background: #ffffff;
+  color: var(--metro-accent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.metro-brand__spacer {
+  flex: 1;
+}
+
+/* -- 标题区：v0.4 第五轮 ----------------------------------------------
+ *
+ * 三层结构：
+ *   ① .metro-brand    品牌行：JP · APP_NAME · 版本
+ *   ② .metro-tabs     一级 Tab：阶段（总览/准备/评估/提升/系统）
+ *   ③ .metro-pagetabs 页面标题 = Sub-Tab
+ *
+ * 第五轮的四条要求（均为用户明确提出）：
+ *   A. 左侧对齐统一：品牌行、一级 Tab、SubTab、页内内容全部用同一个 --metro-gutter。
+ *   B. SubTab 选中项在两端时贴边、中间时居中（JS 里算，见 MetroShell 的 GUTTER）。
+ *   C. SubTab 容器不设左右 padding —— 字超出屏幕只显示一部分是可以接受的。
+ *      但**最左与最右的视觉端点必须限位**，否则能划过头把标签名弄丢。
+ *   D. SubTab 字号统一、整栏用相近的另一种颜色区分层级、选中项只加粗不放大。
+ */
+
+:root {
+  /* 左边缘基准。品牌行 / 一级 Tab / SubTab / 页内内容共用这一个值。 */
+  --metro-gutter: 18px;
+}
+
+/* ① 品牌行 */
+.metro-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  /* Metro 的小字距标签：全大写 + 放大字距，用来做「身份行」 */
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+/* ② 一级 Tab：阶段。字号比页面标题小一档，两级不打架。 */
+.metro-tabs {
+  display: flex;
+  gap: 20px;
+  margin-top: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* 不再自带 padding —— header 已经给了 var(--metro-gutter)，
+     这里再加一次会让首项落到 2×gutter（实测 36px）。 */
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.metro-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.metro-tab {
+  position: relative;
+  flex: none;
+  border: 0;
+  background: transparent;
+  padding: 0 0 6px;
+  min-height: 34px;
+  font-size: 15px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.52);
+  cursor: pointer;
+  transition: color 0.16s ease-out;
+}
+
+.metro-tab.is-active {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* Metro 的一级导航标记：底部实心条 */
+.metro-tab.is-active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  border-radius: 2px 2px 0 0;
+  background: #ffffff;
+}
+
+/*
+ * ③ SubTab（= 页面标题）。
+ *
+ * A. 左边缘：第一个标签用 margin-left 对齐 gutter。不能用 padding ——
+ *    padding 会把「首项贴边」也推离边缘，而首项贴边正是要求 B 的另一半。
+ *    margin 不参与滚动宽度计算，所以不影响 scrollWidth，限位仍然准确。
+ *
+ * B/C. 容器本身 `padding: 0`（不设左右边距，字可以溢出到屏幕外只显示一部分），
+ *    限位靠 `scroll-padding` + JS 双重保证：CSS 负责手势滑动时不会过界，
+ *    JS 负责程序化切换时 clamp 在有效范围内。
+ *
+ *    scroll-padding 与 padding 的区别正是这里想要的：
+ *    padding 会真正占用布局宽度（把内容往里推），
+ *    scroll-padding 只影响滚动容器的留白，不改变内容位置。
+ *
+ * D. 字号统一为 20px。选中项只加粗（700）+ 变亮，不放大 ——
+ *    放大两档会让这一行随选中项变化而抖动，横向滚动时更明显。
+ *
+ *    整栏换色：SubTab 用比一级 Tab 更深一点的蓝（--metro-accent-deep），
+ *    两层靠**色相**区分而不是靠字号差，这样不依赖用户能否分辨灰色深浅。
+ */
+.metro-pagetabs {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+  /*
+   * 负 margin 抵掉 header 的左右 padding，让这一栏的色带铺满全屏宽。
+   *
+   * 为什么用负 margin 而不是给色带加 z-index: -1：
+   *   header 自己有背景色（--metro-accent），z-index: -1 的伪元素会落到
+   *   父级背景**之下**，整条色带会被吃掉。
+   *   负 margin 是在布局层面把它拉出去，不依赖 z-index 上下文。
+   *
+   * 注意这不影响标签的左边缘：标签靠自己的 margin-left 对齐 gutter，
+   * 容器往左扩出去的那 18px 恰好被首项的 margin 抵消回来。
+   */
+  margin: 2px calc(-1 * var(--metro-gutter)) 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* 限位：允许滚到内容两端，但两端各留 gutter 的空白 —— 标签名不会被推出屏幕 */
+  scroll-padding-left: var(--metro-gutter);
+  scroll-padding-right: var(--metro-gutter);
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+/*
+ * 整栏色带：比一级 Tab 深一档的蓝。
+ *
+ * 用伪元素铺满整栏，而不是给容器加 background ——
+ * 容器是要横向滚动的，background 只画在内容盒上，滚动时色带跟着动，
+ * 视觉上就成了「一段蓝条在滑动」，而不是「一栏是深蓝的」。
+ */
+.metro-pagetabs::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--metro-accent-subtab);
+  /* 色带在文字之下。标签自带 position: relative + z-index: 1，所以这里用 0 */
+  z-index: 0;
+}
+
+.metro-pagetabs::-webkit-scrollbar {
+  display: none;
+}
+
+.metro-pagetab {
+  position: relative;
+  /* 高于色带伪元素（z-index: 0），否则文字会被压在色带下面 */
+  z-index: 1;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  background: transparent;
+  padding: 0 0 7px;
+  /* 44px：Android 可点区域的绝对下限 */
+  min-height: 44px;
+  /* D. 字号统一 —— 选中与否完全一样 */
+  font-size: 20px;
+  line-height: 1.3;
+  white-space: nowrap;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.68);
+  cursor: pointer;
+  transition: color 0.16s ease-out, font-weight 0.1s ease-out;
+}
+
+/* 首项左对齐 gutter。
+ *
+ * 容器已经用负 margin 把整栏拉出去（为了铺满色带），
+ * 那一格拉回来后首项的自然起点正好是屏幕 x=0，
+ * 所以这里只需补回一个 gutter 就与品牌行对齐。
+ * 实测：不给这个 margin，首项会贴到屏幕最左、比品牌行还靠外 18px。 */
+.metro-pagetab:first-child {
+  margin-left: var(--metro-gutter);
+}
+
+/* 末项右侧同样留 gutter，保证「贴边」时左右对称 */
+.metro-pagetab:last-child {
+  margin-right: var(--metro-gutter);
+}
+
+/* 选中项：只加粗 + 变亮，字号不变 */
+.metro-pagetab.is-active {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+/* 选中标记：底部下划线。它同时是「选中」与「这里可点」的提示 */
+.metro-pagetab.is-active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: #ffffff;
+}
+
+.metro-pagetab__icon {
+  display: inline-flex;
+  opacity: 0.85;
+}
+
+.metro-pagetab__badge {
+  min-width: 18px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.22);
+  padding: 0 5px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 17px;
+  text-align: center;
+  color: #ffffff;
+}
+
+.metro-pagetab.is-active .metro-pagetab__badge {
+  background: #ffffff;
+  color: var(--metro-accent);
+}
+
+/*
+ * 页面说明（原来叫 subtitle，在头部）。
+ * 移到内容区第一屏：它在头部时要占 2 行约 30px 且不提供决策信息。
+ */
+.metro-lede {
+  margin: 0 0 12px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--metro-ink-soft);
+}
+
+/* -- 内容区 ---------------------------------------------------------------- */
+.metro-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  padding: 16px var(--metro-gutter) calc(env(safe-area-inset-bottom, 0px) + 28px);
+}
+
+/* -- 去重复标题 ------------------------------------------------------------
+ * 工作台页自带一个 <header>（"AI Job Partner" + 那句 tagline），
+ * 而外壳头部已经渲染了同样的页名与副标题 —— 于是同一句话连着出现两遍。
+ * 这里只在工作台页把它收掉：该 header 里没有任何操作按钮，
+ * 且「你的求职能力分析与训练伙伴」这句在外壳副标题里逐字相同，信息零丢失。
+ *
+ * 为什么别的页面不动：
+ *   其余页面的 <header> 里放着「重新分析」「生成训练计划」这类操作入口，
+ *   而且说明文字比外壳副标题长得多（例如面试复盘那段解释 18 维报告来由的话）。
+ *   无差别隐藏会把入口和正文一起藏掉 —— 那比重复标题糟得多。
+ *   所以选择器收得很窄，并且带 :has() 守卫：一旦以后有人在里面加了按钮，
+ *   这条规则会自动失效而不是悄悄藏掉入口。
+ */
+:root[data-aijob-host='android']
+  .metro-app[data-route='workbench']
+  .metro-content
+  > div
+  > header:first-child:not(:has(button, a, input, select)) {
+  display: none;
+}
+
+/* -- 处理中提示：贴在头部下沿的一条实心带，不用浮层（Metro 不用浮层打断） --- */
+.metro-busy {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 18px;
+  background: var(--metro-ink);
+  color: #ffffff;
+  font-size: 12px;
+}
+
+.metro-busy__dot {
+  height: 8px;
+  width: 8px;
+  flex: none;
+  background: var(--metro-c-amber);
+  animation: metro-pulse 1s steps(1, end) infinite;
+}
+
+@keyframes metro-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * 5. 常驻「下一步」条（v0.3 新增）
+ * ---------------------------------------------------------------------------
+ * 用户反馈「移动端视觉引导混乱」。根因不是配色或间距，
+ * 而是每页都在解释自己、却没有任何一处说明「现在该点哪个」。
+ * 这一条把那个答案固定在头部下方，处理中提示之上 —— 位置固定，视线不用找。
+ *
+ * 形态选择：全宽色带 + 右侧一块实心按钮，与 metro-busy 同一种语言。
+ * 不用卡片、不用浮层：它是「当前状态」，不是内容。
+ */
+.metro-next {
+  flex: none;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  border-bottom: 1px solid var(--metro-c-slate);
+  background: var(--color-slate-100);
+}
+
+.metro-next__body {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 10px 14px 11px;
+}
+
+/* 紧急度不同的视觉差异：只有左边这条竖色条在变，整块布局不动 */
+.metro-next--urgent {
+  background: var(--metro-c-blue);
+  color: #ffffff;
+  border-bottom-color: transparent;
+}
+
+.metro-next--normal {
+  background: var(--color-slate-100);
+  color: var(--metro-ink);
+}
+
+.metro-next__tag {
+  display: inline-block;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  opacity: 0.72;
+}
+
+.metro-next__reason {
+  margin: 3px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+/* 按钮是独立的一整块，不和文案挤在一行 —— 手机上拇指够得着的高度 */
+.metro-next__cta {
+  flex: none;
+  align-self: stretch;
+  border: 0;
+  padding: 0 18px;
+  background: var(--metro-ink);
+  color: #ffffff;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.metro-next--urgent .metro-next__cta {
+  background: #ffffff;
+  color: var(--metro-c-blue);
+}
+
+/* ---------------------------------------------------------------------------
+ * 6. 枢纽磁贴（Metro 的标志性大色块）
+ * ---------------------------------------------------------------------------
+ * 只在「工作台」页出现，作为进入各功能页的快捷入口。
+ * 磁贴本身就是控件：数字是内容，整块是点击区。
+ */
+.metro-hub {
+  margin-bottom: 20px;
+}
+
+.metro-hub__label {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-slate-500);
+}
+
+.metro-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.metro-tile {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  /* 保证磁贴可点区域足够大；数字小的磁贴也不会塌成一条 */
+  min-height: 96px;
+  border: 0;
+  background: var(--tile-color, var(--metro-accent));
+  padding: 13px 14px 14px;
+  text-align: left;
+  color: #ffffff;
+  cursor: pointer;
+  transition: transform 0.14s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+.metro-tile:active {
+  transform: scale(0.972);
+}
+
+.metro-tile__value {
+  font-size: 32px;
+  font-weight: 200;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.metro-tile__label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.metro-tile__caption {
+  display: block;
+  margin-top: 2px;
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* 宽磁贴：占满一行，用于放一句需要读的话 */
+.metro-tile--wide {
+  grid-column: span 2;
+  min-height: 0;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+/* ---------------------------------------------------------------------------
+ * 7. 动效：Metro 用短促、有方向的动效表达「从哪来、到哪去」
+ * ---------------------------------------------------------------------------
+ * 原 styles.css 的 aijob-fade-up 是 0.22s 匀速淡入；
+ * 移动端改成更快的位移淡入，并把缓动换成先快后慢，观感更「跟手」。
+ */
+:root[data-aijob-host='android'] .animate-fade-up {
+  animation: metro-enter 0.18s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes metro-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 弹层在窄屏上不该留 24px 外框，直接铺满可用宽度 */
+:root[data-aijob-host='android'] .fixed.inset-0.z-50 {
+  padding: 0;
+  align-items: flex-start;
+}
+
+/* ---------------------------------------------------------------------------
+ * 8. 触控尺寸兜底
+ * ---------------------------------------------------------------------------
+ * 桌面端 13px 字号 / 26px 高的按钮在手机上偏小。
+ * 只抬最小高度，不改字号，避免破坏既有排版节奏。
+ */
+:root[data-aijob-host='android'] button {
+  min-height: 34px;
+}
+
+:root[data-aijob-host='android'] .metro-pagetab,
+:root[data-aijob-host='android'] .metro-tile {
+  min-height: 48px;
+}
+
+:root[data-aijob-host='android'] textarea,
+:root[data-aijob-host='android'] input,
+:root[data-aijob-host='android'] select {
+  font-size: 16px; /* < 16px 时 Android WebView 会在聚焦时自动放大页面 */
+}
+
+:root[data-aijob-host='android'] textarea {
+  font-size: 15px;
+}

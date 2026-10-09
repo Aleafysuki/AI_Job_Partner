@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      自适应图标的背景层。
+
+      原值留痕：<color name="ic_launcher_background">#FFFFFF</color>
+      原来的白色是给 Capacitor 那个深色 logo 当前景用的背景。
+      换成 Metro 的四格白方块之后，白色前景压在白色背景上等于看不见，
+      所以底色改为 Metro Blue（与 values/colors.xml 的 metro_blue 同值）——
+      也就是 Metro 磁贴的做法：纯色底 + 白图形。
+
+      ⚠ 这里用字面量而不是 @color/metro_blue：aapt2 对 `<color>` 元素内的
+      资源引用在不同版本上行为不一致，而这个文件无法在本机编译验证。
+    -->
+    <color name="ic_launcher_background">#FF0050EF</color>
+</resources>

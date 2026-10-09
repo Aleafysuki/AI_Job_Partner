@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  FileProvider 可共享的路径白名单。
+
+  原内容留痕：
+      <external-path name="my_images" path="." />
+      <cache-path name="my_cache_images" path="." />
+
+  ⚠ 这一段是**必须补**的，不是可选优化：
+  AijobCapture.openFolder() 要把录音目录里的第一个文件交给系统查看器，
+  而录音存在应用私有目录（files/recordings/<sessionId>/）。
+  上面的 external-path / cache-path 都指向应用私有目录之外，
+  所以只保留它们的话，FileProvider.getUriForFile() 会直接抛
+  IllegalArgumentException: Failed to find configured root ——
+  现象是「点了打开文件夹，应用崩了」。
+
+  为什么只开 recordings/ 这一条子路径：FileProvider 的白名单是安全边界，
+  写 path="." 等于把整个私有目录（包括 aijob.db，里面是用户的完整能力档案）
+  都变成可授权的 URI。只放录音目录，越界就抛异常，这是期望的行为。
+-->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <files-path name="aijob_recordings" path="recordings/" />
+
+    <!-- 下面两条保留自 Capacitor 模板（原样留痕，勿删） -->
+    <external-path name="my_images" path="." />
+    <cache-path name="my_cache_images" path="." />
+</paths>

@@ -1,0 +1,16 @@
+{
+  "name": "@aijob/core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI Job Partner 核心业务层：纯 TypeScript，不含任何 UI / 宿主环境依赖，可被 Electron / Web / Tauri / Node 复用",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}

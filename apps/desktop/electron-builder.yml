@@ -1,0 +1,41 @@
+appId: com.aijobpartner.desktop
+productName: AI Job Partner
+copyright: AI Job Partner v0.1 Prototype
+
+directories:
+  output: release
+  buildResources: build
+
+# 渲染层已经被 Vite 打包进 out/renderer，主进程与预加载也各自打包完成，
+# 因此不需要把 node_modules 带进安装包（本项目没有原生模块依赖）。
+files:
+  - out/**
+  - package.json
+
+asar: true
+npmRebuild: false
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: AI-Job-Partner-${version}-setup.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: AI Job Partner
+
+mac:
+  target:
+    - dmg
+  category: public.app-category.productivity
+
+linux:
+  target:
+    - AppImage
+  category: Utility

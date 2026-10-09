@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  启动画面。
+
+  原值留痕（Capacitor 模板用的是位图 @drawable/splash.png，勿删——已移到
+  apps/android/_deprecated/capacitor-template-bitmaps/）。
+  这里换成矢量：一块 Metro Blue + 居中的四格方块，与应用图标同一个母题。
+
+  为什么必须换成矢量：原来的 splash.png 有 11 个密度变体（横屏 5 个 + 竖屏 5 个 + 基础 1 个），
+  那份位图是 Capacitor 的 logo —— 一个不属于这个产品的品牌。
+  换成 drawable/splash.xml 之后，同一份资源在任意密度下都清晰，
+  也不用再维护十一份 png。
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item android:drawable="@color/metro_blue" />
+
+    <item
+        android:width="120dp"
+        android:height="120dp"
+        android:gravity="center">
+        <vector
+            android:width="120dp"
+            android:height="120dp"
+            android:viewportWidth="108"
+            android:viewportHeight="108">
+            <path android:fillColor="#FFFFFFFF" android:pathData="M26,26h26v26h-26z" />
+            <path android:fillColor="#FFFFFFFF" android:pathData="M56,26h26v26h-26z" />
+            <path android:fillColor="#FFFFFFFF" android:pathData="M26,56h26v26h-26z" />
+            <path android:fillColor="#FFFFFFFF" android:pathData="M56,56h26v26h-26z" />
+        </vector>
+    </item>
+</layer-list>

@@ -1,0 +1,34 @@
+ext {
+    /*
+      原值留痕：minSdkVersion = 24
+
+      改成 26（Android 8.0）的两条理由：
+        1. 自适应图标（mipmap-anydpi-v26 + <adaptive-icon>）从 API 26 起才被识别。
+          minSdk 24 时系统在 API 24/25 上会去找密度位图，而那一批 Capacitor
+          模板位图已经被移走（见 apps/android/_deprecated/capacitor-template-bitmaps/），
+          保留 24 会得到一个「部分设备上图标是空的」的隐蔽问题；
+        2. 原生侧用到了 java.nio.file.Files（AijobCapture / AijobBridge 读文件），
+          这个 API 也是 26 起才在 Android 上可用。
+
+      26 在 2026 年覆盖了几乎所有在用设备，代价可以忽略。
+      要回到 24 的话，需要同时把位图图标找回来，并把 java.nio.file 的用法
+      换成流式读写。
+    */
+    minSdkVersion = 26
+    compileSdkVersion = 36
+    targetSdkVersion = 36
+    androidxActivityVersion = '1.11.0'
+    androidxAppCompatVersion = '1.7.1'
+    androidxCoordinatorLayoutVersion = '1.3.0'
+    androidxCoreVersion = '1.17.0'
+    androidxFragmentVersion = '1.8.9'
+    coreSplashScreenVersion = '1.2.0'
+    androidxWebkitVersion = '1.14.0'
+    junitVersion = '4.13.2'
+    androidxJunitVersion = '1.3.0'
+    androidxEspressoCoreVersion = '3.7.0'
+    cordovaAndroidVersion = '14.0.1'
+
+    /* 原生出网用的 HTTP 客户端（AijobBridge.httpRequest） */
+    okhttpVersion = '4.12.0'
+}

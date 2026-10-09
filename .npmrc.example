@@ -1,0 +1,13 @@
+# 可选：国内镜像加速配置
+#
+# 用法：复制本文件为 .npmrc（同目录），然后执行 npm install
+#   cp .npmrc.example .npmrc
+#
+# 本文件只影响当前项目，不会修改你机器上的全局 npm 配置。
+# 导致的问题（如有）可以通过删除 .npmrc 立刻回退。
+
+registry=https://registry.npmmirror.com
+
+# electron / electron-builder 的二进制不走 npm registry，需要单独指定镜像
+electron_mirror=https://npmmirror.com/mirrors/electron/
+electron_builder_binaries_mirror=https://npmmirror.com/mirrors/electron-builder-binaries/

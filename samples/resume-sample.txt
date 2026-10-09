@@ -1,0 +1,47 @@
+张明
+电话：13800138000  邮箱：zhangming@example.com  现居：杭州市西湖区文一西路 100 号
+求职意向：AI 应用开发 / Agent 开发工程师
+
+教育背景
+2018.09 - 2022.06  杭州电子科技大学  计算机科学与技术  本科
+- 主修课程：数据结构、数据库原理、计算机网络、机器学习导论
+- 校级程序设计竞赛二等奖
+
+工作经历
+2022.07 - 2024.03  杭州云栖网络科技有限公司  Python 开发工程师
+- 负责内部数据采集平台开发，使用 Python + Playwright 每天采集约 800 条商品数据，稳定运行 6 个月
+- 将原有手工导出流程改为自动化脚本，单人每周节省约 6 小时
+- 参与接口联调，编写接口文档 20 余篇
+
+2024.04 - 至今  杭州星火智能科技有限公司  AI 应用开发
+- 使用 Dify 搭建企业内部知识库问答应用，接入公司 300 余份文档，问答准确率由 61% 提升到 84%
+- 使用 Coze 搭建客服工单自动分类工作流，人工分派工作量下降约 40%
+- 负责调用大模型 API 封装统一网关，覆盖 4 个业务线
+- 参与 AI Job Partner 项目，负责简历与岗位的结构化解析模块
+
+项目经历
+AI Job Partner 求职分析工具（个人项目，进行中）
+- 技术栈：TypeScript、React、Electron、SQLite
+- 设计并实现 Requirement → Evidence → Assessment 的匹配链路，替代原有的关键词打分方案
+- 内置隐私脱敏模块，姓名、电话、邮箱在送入模型前统一替换为占位符
+- 支持 OpenAI 兼容接口与 Ollama 本地模型两种 Provider
+
+网页安全检测浏览器插件
+- 技术栈：JavaScript、Chrome Extension API、Node.js
+- 实现对页面表单的行为检测，累计在 3 个内测群共 120 人中使用
+- 使用 GitHub Actions 自动打包发布，发布耗时从 15 分钟降到 2 分钟
+
+音游窝后台管理系统
+- 技术栈：Vue3、FastAPI、MySQL
+- 负责用户成绩排行榜与曲库管理模块，支持 1.2 万条曲目数据检索，平均响应时间 180ms
+- GitHub: https://github.com/example/otogame-admin
+
+专业技能
+- 编程语言：Python（熟练）、TypeScript（熟悉）、JavaScript（熟悉）、SQL（熟悉）、Java（了解）
+- AI 相关：Prompt Engineering、RAG 检索增强、Dify、Coze、大模型 API 调用、Ollama
+- 工程工具：Git、Docker、Linux、Nginx
+- 数据处理：MySQL、Pandas、数据清洗
+- 办公：Excel 数据处理、PPT 制作
+
+自我评价
+做事偏工程化，习惯先想清楚边界再动手；遇到不确定的问题会主动做小实验验证。

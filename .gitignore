@@ -1,0 +1,55 @@
+# 依赖与产物
+node_modules/
+out/
+dist/
+dist-web/
+dist-demo/
+release/
+release-installer/
+*.tsbuildinfo
+
+# 日志与系统文件
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# 编辑器
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# 本地数据（正常情况下数据在 %APPDATA%/ai-job-partner，这里做一层兜底）
+data/
+*.db
+*.db.bak
+*.tmp
+
+# 不要提交任何真实简历 / 岗位数据
+samples/private/
+
+# ===== 同步到 GitHub 时的额外排除项 =====
+# 辅助工具目录（含对话 / 任务记录，绝不外传）
+.workbuddy/
+
+# 本地环境配置（机器专属 sdk.dir，标准 Android 惯例）
+local.properties
+# 真实的 npm 配置（仅提交 .npmrc.example 模板）
+.npmrc
+# 环境变量文件
+.env
+.env.*
+
+# Android / 原生构建产物
+apps/android/android/app/build/
+apps/android/android/.gradle/
+*.apk
+
+# 桌面端额外构建产物
+dist-android/
+
+# 截图（冒烟测试生成，非源码）
+screenshots/
+
+# 测试覆盖率
+coverage/

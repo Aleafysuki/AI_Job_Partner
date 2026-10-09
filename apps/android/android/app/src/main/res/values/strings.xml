@@ -1,0 +1,24 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">AI Job Partner</string>
+    <string name="title_activity_main">AI Job Partner</string>
+    <string name="package_name">com.aijob.partner</string>
+    <string name="custom_url_scheme">com.aijob.partner</string>
+
+    <!--
+      静默模式的前台服务通知。
+
+      ⚠ 这三条文案与产品的一条边界直接相关，改之前请先读
+      docs/ANDROID.md 的「与桌面端不同的四条」：
+      产品要求「面试期间不弹任何提示」，而 Android 强制长时间录音必须显示常驻通知。
+      这一条无法调和，所以通知承担了两个职责：
+        1. 它是系统强制的存在，只能把可见度压到最低（IMPORTANCE_LOW，无声无震动）；
+        2. 它必须同时充当「结束录制」的入口 —— 静默模式下用户没有别的地方能停掉录制。
+      因此文案要让人一眼看懂「这是什么」和「怎么停」，不能写得含糊。
+    -->
+    <string name="quiet_channel_name">面试录制中</string>
+    <string name="quiet_channel_desc">面试复盘录制期间保持进程存活。此通知由系统要求，无法关闭。</string>
+    <string name="quiet_notification_title">正在录制面试</string>
+    <string name="quiet_notification_text">结束后回到应用生成复盘报告</string>
+    <string name="quiet_notification_action">结束录制</string>
+</resources>

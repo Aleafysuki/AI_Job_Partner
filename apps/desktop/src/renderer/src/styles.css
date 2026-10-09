@@ -1,0 +1,321 @@
+@import "tailwindcss";
+
+/* 中文界面优先使用系统中文黑体，避免英文回退字体导致的字形不一致 */
+:root {
+  --aijob-font: "Inter", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    "Noto Sans SC", system-ui, sans-serif;
+  color-scheme: light;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--aijob-font);
+  background: #f5f6f8;
+  color: #1f2937;
+  -webkit-font-smoothing: antialiased;
+  font-size: 14px;
+}
+
+/* 应用内滚动条细一点，避免打断工作台的整洁感 */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 8px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+textarea,
+input,
+select {
+  font-family: inherit;
+}
+
+@keyframes aijob-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: aijob-fade-up 0.22s ease-out both;
+}
+
+/* ==========================================================================
+   v0.4 模拟面试（pages/Mock.tsx）
+   ==========================================================================
+   进度条与五维列表用纯 CSS，不引 Tailwind 组合类 ——
+   这两个结构在页面里各出现一次，但它们的视觉（分段感、状态色）
+   与其它页的 Card 不一致，抽成组件反而更绕。
+   ========================================================================== */
+
+.mock-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mock-progress__bar {
+  height: 3px;
+  border-radius: 2px;
+  background: rgb(226 232 240);
+  overflow: hidden;
+}
+
+.mock-progress__bar > div {
+  height: 100%;
+  background: #2563eb;
+  transition: width 0.25s ease-out;
+}
+
+/* 「对方想看什么」：这句话解释了题目背后的考察点，
+   必须与题目本身视觉上分开，否则用户会把它当成题干的一部分去背。 */
+.mock-why {
+  margin: 0.5rem 0 0;
+  border-left: 2px solid rgb(191 219 254);
+  padding-left: 0.6rem;
+  font-size: 12px;
+  line-height: 1.6;
+  color: rgb(71 85 105);
+}
+
+/* 设置页的勾选项：标题 + 说明竖排，说明占满宽度以便换行 */
+.mock-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  padding: 0.5rem 0;
+  cursor: pointer;
+}
+
+.mock-check input {
+  margin-top: 2px;
+  flex: none;
+}
+
+/* 五维结论列表 */
+.mock-dims {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.mock-dim {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 0.375rem;
+  border-left: 2px solid transparent;
+  background: rgb(248 250 252);
+}
+
+.mock-dim.is-ok {
+  border-left-color: #16a34a;
+}
+
+.mock-dim.is-partial {
+  border-left-color: #d97706;
+}
+
+.mock-dim.is-missing {
+  border-left-color: #dc2626;
+}
+
+.mock-dim__name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: rgb(30 41 59);
+  white-space: nowrap;
+}
+
+/* 缺口说明要占满整行 —— 它通常比维度名长得多 */
+.mock-dim__gap,
+.mock-dim__quote {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: rgb(71 85 105);
+}
+
+.mock-dim__quote {
+  color: rgb(100 116 139);
+  font-style: italic;
+}
+
+.mock-followups {
+  margin-top: 0.9rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.375rem;
+  background: rgb(255 251 235);
+  border: 1px solid rgb(254 243 199);
+}
+
+.mock-followups ul {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 12px;
+  line-height: 1.7;
+  color: rgb(120 53 15);
+}
+
+.mock-evidence,
+.mock-no-evidence {
+  margin-top: 0.9rem;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.mock-evidence ul {
+  margin: 0.35rem 0;
+  padding-left: 1.1rem;
+}
+
+.mock-answer-text {
+  margin: 0.3rem 0 0;
+  padding: 0.6rem 0.7rem;
+  border-radius: 0.375rem;
+  background: rgb(248 250 252);
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: rgb(30 41 59);
+  white-space: pre-wrap;
+}
+
+.mock-weakenings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* ==========================================================================
+   v0.5 模拟面试的交互反馈（pages/Mock.tsx）
+   ==========================================================================
+   反馈卡要一眼分成三块：「结论」「缺什么」「好在哪」。
+   三块用左边框颜色区分，而不是只靠字号 ——
+   因为用户是在等面试的间隙扫一眼，不是在读文章。
+   ========================================================================== */
+
+.mock-feedback {
+  border-left: 3px solid #2563eb;
+}
+
+.mock-feedback__head {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 8px;
+}
+
+.mock-feedback__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.mock-feedback__list li {
+  position: relative;
+  padding-left: 14px;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: #475569;
+}
+
+/* 用一个短横而不是圆点：圆点会被读成「并列的注意事项」，横杠更像「缺了一块」 */
+.mock-feedback__list li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 9px;
+  width: 6px;
+  height: 2px;
+  border-radius: 1px;
+  background: #f59e0b;
+}
+
+.mock-feedback__anchor {
+  display: block;
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.mock-feedback__good {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.mock-feedback__chip {
+  border-radius: 999px;
+  background: #f0fdf4;
+  padding: 2px 9px;
+  font-size: 11.5px;
+  color: #15803d;
+}
+
+/* 追问块：暖色底，与上面的「缺什么」明确区分 ——
+   前者是系统给的评价，后者是对方要问的话，混在一起会让人搞不清哪句是题 */
+.mock-followup {
+  margin-top: 12px;
+  padding: 11px 13px;
+  border-radius: 8px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+}
+
+.mock-followup__tag {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #b45309;
+  margin-bottom: 5px;
+}
+
+.mock-followup__text {
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: #78350f;
+  font-weight: 500;
+  margin: 0;
+}
+
+.mock-followup__why {
+  font-size: 12px;
+  line-height: 1.7;
+  color: #92400e;
+  margin: 7px 0 0;
+}

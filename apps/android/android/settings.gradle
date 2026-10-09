@@ -1,0 +1,45 @@
+include ':app'
+include ':capacitor-cordova-android-plugins'
+project(':capacitor-cordova-android-plugins').projectDir = new File('./capacitor-cordova-android-plugins/')
+
+apply from: 'capacitor.settings.gradle'
+
+// ---------------------------------------------------------------------------
+// 修正 capacitor-android 的工程路径（勿删，这是让构建能跑起来的关键一步）
+// ---------------------------------------------------------------------------
+// 问题：Capacitor 生成的 capacitor.settings.gradle 里写的是
+//     project(':capacitor-android').projectDir = new File('../../../node_modules/@capacitor/android/capacitor')
+// —— 一个相对于本目录的路径，也就是 apps/android/node_modules/...。
+//
+// 但本仓库是 npm workspaces（根 package.json 里声明了 workspaces: ["packages/*", "apps/*"]），
+// npm 默认把依赖**提升**到仓库根的 node_modules，apps/android/node_modules 是空的。
+// 于是上面那个路径不存在，Gradle 在配置阶段就报
+//     Project directory '...' does not exist
+// 连编译都到不了。
+//
+// 为什么不去改 capacitor.settings.gradle：那个文件头写着
+// "DO NOT EDIT ... GENERATED EACH TIME capacitor update IS RUN"，
+// 下次 `npx cap sync` 就会被覆盖回去。而 settings.gradle 不在重新生成的范围内，
+// 所以修正放在这里才是能留住的。
+//
+// 为什么写成「两个位置都试」而不是直接写提升后的路径：
+// 如果以后换成不带 workspaces 的安装方式（例如单独在 apps/android 下 npm install），
+// 依赖会落在本地 node_modules，那时应该走 Capacitor 原本给的那个路径。
+// 两种布局都支持，才不会因为换了个安装方式就突然构建不了。
+def capacitorProject = project(':capacitor-android')
+def localDir = file('node_modules/@capacitor/android/capacitor')
+def hoistedDir = file('../../../node_modules/@capacitor/android/capacitor')
+
+if (localDir.exists()) {
+    capacitorProject.projectDir = localDir
+} else if (hoistedDir.exists()) {
+    // 依赖被 npm workspaces 提升到了仓库根，这才是本机实际的布局
+    capacitorProject.projectDir = hoistedDir
+} else {
+    throw new GradleException(
+        "找不到 capacitor-android 依赖。已尝试：\n" +
+        "  ${localDir}\n" +
+        "  ${hoistedDir}\n" +
+        "请先在仓库根或 apps/android 下执行 npm install。"
+    )
+}

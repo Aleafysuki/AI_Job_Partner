@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  自适应图标的前景层。
+
+  原值留痕（Capacitor 模板的默认前景，勿删——位图已移到
+  apps/android/_deprecated/capacitor-template-bitmaps/）：
+      mipmap-anydpi-v26/ic_launcher.xml 里引用的是 @mipmap/ic_launcher_foreground，
+      原本由 mipmap-*dpi/ic_launcher_foreground.png 提供（Capacitor 的 logo）。
+
+  换成了 Metro 的四格方块 —— 与应用内「工作台」页的图标是同一个母题，
+  这样桌面上的图标与打开后的第一个界面在视觉上是同一句话。
+  纯白色块、零圆角、零渐变，符合 Metro 的图标纪律。
+
+  尺寸说明：自适应图标的画布是 108x108，但系统会裁掉外圈，
+  只有中间约 66x66 一定可见。所以四格方块整体控制在 24..84 之间。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <path android:fillColor="#FFFFFFFF" android:pathData="M26,26h26v26h-26z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M56,26h26v26h-26z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M26,56h26v26h-26z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M56,56h26v26h-26z" />
+</vector>

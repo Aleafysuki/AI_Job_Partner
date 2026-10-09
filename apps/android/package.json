@@ -1,0 +1,23 @@
+{
+  "name": "@aijob/android",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "AI Job Partner Android 宿主（Capacitor 容器 + 原生桥）",
+  "scripts": {
+    "sync": "node scripts/sync.mjs",
+    "check": "node scripts/check-native.mjs",
+    "add": "cap add android",
+    "copy": "cap copy android",
+    "open": "cap open android",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.2",
+    "@capacitor/core": "8.5.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.2",
+    "typescript": "^7.0.2"
+  }
+}

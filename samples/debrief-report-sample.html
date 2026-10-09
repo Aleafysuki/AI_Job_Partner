@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI 应用开发工程师 · 面试复盘</title>
+<style>
+:root{color-scheme:light}
+*{box-sizing:border-box}
+body{margin:0;background:#f5f6f8;color:#1e293b;font:14px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}
+.wrap{max-width:960px;margin:0 auto;padding:32px 20px 64px}
+.cover{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:26px 28px;margin-bottom:18px}
+.cover h1{margin:0 0 6px;font-size:22px;letter-spacing:.2px}
+.cover .meta{display:flex;flex-wrap:wrap;gap:6px 16px;color:#64748b;font-size:12px;margin-top:10px}
+.tag{display:inline-block;padding:1px 8px;border-radius:6px;border:1px solid #e2e8f0;background:#f8fafc;font-size:11px;color:#475569}
+.tag.warn{border-color:#fcd34d;background:#fffbeb;color:#92400e}
+.tag.bad{border-color:#fda4af;background:#fff1f2;color:#9f1239}
+.card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:22px 26px;margin-bottom:16px}
+h2{font-size:16px;margin:0 0 12px}
+h3{font-size:14px;margin:0 0 8px}
+.one-line{font-size:17px;font-weight:600;margin:0 0 10px;line-height:1.6}
+.tier{display:inline-block;padding:3px 10px;border-radius:8px;font-size:12px;font-weight:600;margin-bottom:10px}
+.tier-consider{background:#ecfdf5;color:#047857;border:1px solid #a7f3d0}
+.tier-caution{background:#fffbeb;color:#b45309;border:1px solid #fcd34d}
+.tier-mismatch{background:#fff1f2;color:#be123c;border:1px solid #fda4af}
+.tier-insufficient{background:#f8fafc;color:#475569;border:1px solid #e2e8f0}
+.next-action{margin-top:14px;padding:12px 14px;border-radius:10px;background:#eef2ff;border:1px solid #c7d2fe;color:#312e81}
+.next-action b{display:block;font-size:12px;margin-bottom:3px;opacity:.75}
+ul{margin:6px 0;padding-left:20px}
+li{margin:4px 0}
+.basis{font-size:11px;padding:0 5px;border-radius:4px;background:#f1f5f9;color:#475569;white-space:nowrap}
+.basis-stated{background:#ecfdf5;color:#047857}
+.basis-inferred{background:#f1f5f9;color:#475569}
+.refs{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:#94a3b8}
+.block{margin:20px 0}
+.formula{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:#475569;margin:4px 0}
+.verdict{margin:8px 0 0;color:#334155}
+.table-wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:12.5px;margin:8px 0}
+th,td{border:1px solid #e2e8f0;padding:6px 9px;text-align:left}
+th{background:#f8fafc;color:#475569;font-weight:600}
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+.chart{margin:0;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px}
+.chart figcaption{font-size:13px;font-weight:600;margin-bottom:4px}
+.chart-note{font-size:11px;color:#94a3b8;margin:4px 0 0}
+.empty-chart{font-size:12px;color:#94a3b8;padding:20px;text-align:center}
+.dim{background:#fff;border:1px solid #e2e8f0;border-left:3px solid #cbd5e1;border-radius:12px;padding:16px 20px;margin-bottom:12px}
+.dim.ok{border-left-color:#34d399}
+.dim.partial{border-left-color:#fbbf24}
+.dim.insufficient_info{border-left-color:#cbd5e1;background:#fcfcfd}
+.dim header{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.dim header h3{margin:0;flex:1}
+.dim-id{font-family:ui-monospace,monospace;font-size:12px;color:#4f46e5;font-weight:700}
+.status{font-size:11px;padding:1px 7px;border-radius:6px;border:1px solid #e2e8f0;color:#475569;background:#f8fafc}
+.status-ok{border-color:#a7f3d0;background:#ecfdf5;color:#047857}
+.status-partial{border-color:#fcd34d;background:#fffbeb;color:#b45309}
+.lead{margin:0 0 8px;color:#334155}
+.sub{margin:8px 0}
+.sub-title{display:block;font-size:11px;font-weight:600;color:#64748b;letter-spacing:.4px;margin-bottom:2px}
+.pri{font-size:10px;padding:0 5px;border-radius:4px;background:#f1f5f9;color:#475569}
+.pri-high{background:#fff1f2;color:#be123c}
+.pri-medium{background:#fffbeb;color:#b45309}
+.qgroup{margin:12px 0}
+.qgroup h3{color:#4f46e5}
+.footer{color:#64748b;font-size:12px;text-align:center;margin-top:24px;line-height:1.8}
+.notice{background:#fffbeb;border:1px solid #fcd34d;color:#92400e;border-radius:10px;padding:10px 14px;font-size:12px;margin-bottom:16px}
+@media (max-width:720px){
+  .wrap{padding:16px 12px 40px}
+  .card,.cover{padding:16px 16px;border-radius:10px}
+  table,thead,tbody,tr,td,th{display:block;width:100%}
+  thead{display:none}
+  tr{border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;padding:6px}
+  td{border:none;padding:3px 6px}
+  td::before{content:attr(data-label) "：";color:#64748b;font-size:11px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <section class="cover">
+    <h1>AI 应用开发工程师 · 面试复盘</h1>
+    <p class="sub" style="margin:0;color:#475569">示例报告 · 由内置示例面试转写生成（本地规则引擎，未调用任何模型）</p>
+    <div class="meta">
+      <span class="tag">面对面面试</span>
+      <span class="tag">时长 42 分 0 秒</span>
+      <span class="tag">2026-10-08 17:32</span>
+      <span class="tag">转写 765 字 · 事实 22 条</span>
+      <span class="tag">置信度 medium</span>
+      <span class="tag">分析引擎 本地规则</span>
+      <span class="tag warn">静默录制</span>
+    </div>
+  </section>
+
+  
+
+  <section class="card">
+    <h2>先结论</h2>
+    <p class="one-line">这次面试存在需要先验证的疑点，确认之后再做决定。</p>
+    <span class="tier tier-caution">需要谨慎</span>
+    <p>这次面试里有几处需要先确认再决定的地方。机会侧有 12 个维度拿到了可用证据，命中 5 类风险话术。报告只使用录音里出现过的话，没有用行业惯例补全任何缺失的部分。</p>
+    <div class="next-action"><b>下一步（只有这一件）</b>今天把这条消息发给对方：一个典型工作日的上午和下午分别是怎么安排的？</div>
+  </section>
+
+  <section class="card"><h2>一处速览</h2><ul><li>出现 5 类风险话术（模糊限定词、归因个人型、宽幅薪资型），报告里给出了验证方法 <span class="refs">每周大概会有 3 到 5 个需求进来, 薪资的话是 20 到 30K，上不封, 这个看情况，正常都能完成，主要看个人, 我们团队氛围挺好的，大家都比较拼，成</span></li><li>薪酬与工时已按材料中的数字算出单位时间回报区间，可以自己复算 <span class="refs">薪资的话是 20 到 30K，上不封, 工作时间是早上 10 点到晚上 8 </span></li><li>对方给出的数量指标换算后，纯处理时间约 6 分钟／天，可行性判断：轻松完成。 <span class="refs">每周大概会有 3 到 5 个需求进来</span></li></ul></section>
+
+  <section class="card">
+    <h2>可视化</h2>
+    <div class="charts">
+      <figure class="chart">
+  <figcaption>压力来源分布</figcaption>
+  <svg viewBox="0 0 320 336" width="100%" role="img" aria-label="压力来源分布">
+    <g><polygon points="160.0,146.4 172.6,151.0 179.3,162.6 177.0,175.8 166.7,184.4 153.3,184.4 143.0,175.8 140.7,162.6 147.4,151.0" fill="none" stroke="#e2e8f0" stroke-width="1" />,<polygon points="160.0,126.8 185.2,136.0 198.6,159.2 193.9,185.6 173.4,202.8 146.6,202.8 126.1,185.6 121.4,159.2 134.8,136.0" fill="none" stroke="#e2e8f0" stroke-width="1" />,<polygon points="160.0,107.2 197.8,121.0 217.9,155.8 210.9,195.4 180.1,221.3 139.9,221.3 109.1,195.4 102.1,155.8 122.2,121.0" fill="none" stroke="#e2e8f0" stroke-width="1" />,<polygon points="160.0,87.6 210.4,105.9 237.2,152.4 227.9,205.2 186.8,239.7 133.2,239.7 92.1,205.2 82.8,152.4 109.6,105.9" fill="none" stroke="#e2e8f0" stroke-width="1" />,<polygon points="160.0,68.0 223.0,90.9 256.5,149.0 244.9,215.0 193.5,258.1 126.5,258.1 75.1,215.0 63.5,149.0 97.0,90.9" fill="none" stroke="#e2e8f0" stroke-width="1" /><line x1="160" y1="166" x2="160.0" y2="68.0" stroke="#e2e8f0" stroke-width="1" /><line x1="160" y1="166" x2="223.0" y2="90.9" stroke="#e2e8f0" stroke-width="1" /><line x1="160" y1="166" x2="256.5" y2="149.0" stroke="#e2e8f0" stroke-width="1" /><line x1="160" y1="166" x2="244.9" y2="215.0" stroke="#e2e8f0" stroke-width="1" /><line x1="160" y1="166" x2="193.5" y2="258.1" stroke="#e2e8f0" stroke-width="1" /><line x1="160" y1="166" x2="126.5" y2="258.1" stroke="#e2e8f0" stroke-width="1" /><line x1="160" y1="166" x2="75.1" y2="215.0" stroke="#e2e8f0" stroke-width="1" /><line x1="160" y1="166" x2="63.5" y2="149.0" stroke="#e2e8f0" stroke-width="1" /><line x1="160" y1="166" x2="97.0" y2="90.9" stroke="#e2e8f0" stroke-width="1" /><polygon points="180.1,221.3 109.1,195.4 102.1,155.8" fill="rgba(79,70,229,0.18)" stroke="#4f46e5" stroke-width="2" /><circle cx="180.1" cy="221.3" r="3" fill="#4f46e5" /><circle cx="109.1" cy="195.4" r="3" fill="#4f46e5" /><circle cx="102.1" cy="155.8" r="3" fill="#4f46e5" /><text x="160.0" y="51.0" text-anchor="middle" font-size="10" fill="#94a3b8">A. 数量压力 —</text><text x="235.8" y="78.6" text-anchor="start" font-size="10" fill="#94a3b8">B. 时间压力 —</text><text x="276.2" y="148.5" text-anchor="start" font-size="10" fill="#94a3b8">C. 业绩压力 —</text><text x="262.2" y="228.0" text-anchor="start" font-size="10" fill="#94a3b8">D. 情绪压力 —</text><text x="200.4" y="279.9" text-anchor="start" font-size="10" fill="#475569">E. 监控压力 3</text><text x="119.6" y="279.9" text-anchor="end" font-size="10" fill="#94a3b8">F. 注意力压力 —</text><text x="57.8" y="228.0" text-anchor="end" font-size="10" fill="#475569">G. 沟通压力 3</text><text x="43.8" y="148.5" text-anchor="end" font-size="10" fill="#475569">H. 排班压力 3</text><text x="84.2" y="78.6" text-anchor="end" font-size="10" fill="#94a3b8">I. 身体压力 —</text></g>
+  </svg>
+  <p class="chart-note">「—」表示材料里没有依据；空轴不参与连线，不用 0 伪造。</p>
+</figure>
+      <figure class="chart">
+  <figcaption>个体适配度</figcaption>
+  <svg viewBox="0 0 320 336" width="100%" role="img" aria-label="个体适配度">
+    <g><polygon points="160.0,146.4 171.5,150.1 178.6,159.9 178.6,172.1 171.5,181.9 160.0,185.6 148.5,181.9 141.4,172.1 141.4,159.9 148.5,150.1" fill="none" stroke="#e2e8f0" stroke-width="1" />,<polygon points="160.0,126.8 183.0,134.3 197.3,153.9 197.3,178.1 183.0,197.7 160.0,205.2 137.0,197.7 122.7,178.1 122.7,153.9 137.0,134.3" fill="none" stroke="#e2e8f0" stroke-width="1" />,<polygon points="160.0,107.2 194.6,118.4 215.9,147.8 215.9,184.2 194.6,213.6 160.0,224.8 125.4,213.6 104.1,184.2 104.1,147.8 125.4,118.4" fill="none" stroke="#e2e8f0" stroke-width="1" />,<polygon points="160.0,87.6 206.1,102.6 234.6,141.8 234.6,190.2 206.1,229.4 160.0,244.4 113.9,229.4 85.4,190.2 85.4,141.8 113.9,102.6" fill="none" stroke="#e2e8f0" stroke-width="1" />,<polygon points="160.0,68.0 217.6,86.7 253.2,135.7 253.2,196.3 217.6,245.3 160.0,264.0 102.4,245.3 66.8,196.3 66.8,135.7 102.4,86.7" fill="none" stroke="#e2e8f0" stroke-width="1" /><line x1="160" y1="166" x2="160.0" y2="68.0" stroke="#e2e8f0" stroke-width="1" /><line x1="160" y1="166" x2="217.6" y2="86.7" stroke="#e2e8f0" stroke-width="1" /><line x1="160" y1="166" x2="253.2" y2="135.7" stroke="#e2e8f0" stroke-width="1" /><line x1="160" y1="166" x2="253.2" y2="196.3" stroke="#e2e8f0" stroke-width="1" /><line x1="160" y1="166" x2="217.6" y2="245.3" stroke="#e2e8f0" stroke-width="1" /><line x1="160" y1="166" x2="160.0" y2="264.0" stroke="#e2e8f0" stroke-width="1" /><line x1="160" y1="166" x2="102.4" y2="245.3" stroke="#e2e8f0" stroke-width="1" /><line x1="160" y1="166" x2="66.8" y2="196.3" stroke="#e2e8f0" stroke-width="1" /><line x1="160" y1="166" x2="66.8" y2="135.7" stroke="#e2e8f0" stroke-width="1" /><line x1="160" y1="166" x2="102.4" y2="86.7" stroke="#e2e8f0" stroke-width="1" /><polygon points="171.5,150.1 215.9,147.8 148.5,181.9 104.1,147.8 125.4,118.4" fill="rgba(79,70,229,0.18)" stroke="#4f46e5" stroke-width="2" /><circle cx="171.5" cy="150.1" r="3" fill="#4f46e5" /><circle cx="215.9" cy="147.8" r="3" fill="#4f46e5" /><circle cx="148.5" cy="181.9" r="3" fill="#4f46e5" /><circle cx="104.1" cy="147.8" r="3" fill="#4f46e5" /><circle cx="125.4" cy="118.4" r="3" fill="#4f46e5" /><text x="160.0" y="51.0" text-anchor="middle" font-size="10" fill="#94a3b8">① 技能适配度 —</text><text x="229.4" y="73.5" text-anchor="start" font-size="10" fill="#475569">② 沟通适配度 1</text><text x="272.2" y="132.5" text-anchor="start" font-size="10" fill="#475569">③ 重复劳动适配度 3</text><text x="272.2" y="205.5" text-anchor="start" font-size="10" fill="#94a3b8">④ 注意力适配度 —</text><text x="229.4" y="264.5" text-anchor="start" font-size="10" fill="#94a3b8">⑤ 情绪压力适配度 —</text><text x="160.0" y="287.0" text-anchor="middle" font-size="10" fill="#94a3b8">⑥ KPI 适配度 —</text><text x="90.6" y="264.5" text-anchor="end" font-size="10" fill="#475569">⑦ 排班适配度 1</text><text x="47.8" y="205.5" text-anchor="end" font-size="10" fill="#94a3b8">⑧ 身体劳动适配度 —</text><text x="47.8" y="132.5" text-anchor="end" font-size="10" fill="#475569">⑨ 短期过渡适配度 3</text><text x="90.6" y="73.5" text-anchor="end" font-size="10" fill="#475569">⑩ 长期发展价值 3</text></g>
+  </svg>
+  
+</figure>
+      <figure class="chart">
+  <figcaption>面试表现</figcaption>
+  <svg viewBox="0 0 320 336" width="100%" role="img" aria-label="面试表现">
+    <g><polygon points="160.0,146.4 177.0,156.2 177.0,175.8 160.0,185.6 143.0,175.8 143.0,156.2" fill="none" stroke="#e2e8f0" stroke-width="1" />,<polygon points="160.0,126.8 193.9,146.4 193.9,185.6 160.0,205.2 126.1,185.6 126.1,146.4" fill="none" stroke="#e2e8f0" stroke-width="1" />,<polygon points="160.0,107.2 210.9,136.6 210.9,195.4 160.0,224.8 109.1,195.4 109.1,136.6" fill="none" stroke="#e2e8f0" stroke-width="1" />,<polygon points="160.0,87.6 227.9,126.8 227.9,205.2 160.0,244.4 92.1,205.2 92.1,126.8" fill="none" stroke="#e2e8f0" stroke-width="1" />,<polygon points="160.0,68.0 244.9,117.0 244.9,215.0 160.0,264.0 75.1,215.0 75.1,117.0" fill="none" stroke="#e2e8f0" stroke-width="1" /><line x1="160" y1="166" x2="160.0" y2="68.0" stroke="#e2e8f0" stroke-width="1" /><line x1="160" y1="166" x2="244.9" y2="117.0" stroke="#e2e8f0" stroke-width="1" /><line x1="160" y1="166" x2="244.9" y2="215.0" stroke="#e2e8f0" stroke-width="1" /><line x1="160" y1="166" x2="160.0" y2="264.0" stroke="#e2e8f0" stroke-width="1" /><line x1="160" y1="166" x2="75.1" y2="215.0" stroke="#e2e8f0" stroke-width="1" /><line x1="160" y1="166" x2="75.1" y2="117.0" stroke="#e2e8f0" stroke-width="1" /><polygon points="160.0,146.4 177.0,156.2 177.0,175.8 160.0,185.6 92.1,205.2 92.1,126.8" fill="rgba(79,70,229,0.18)" stroke="#4f46e5" stroke-width="2" /><circle cx="160.0" cy="146.4" r="3" fill="#4f46e5" /><circle cx="177.0" cy="156.2" r="3" fill="#4f46e5" /><circle cx="177.0" cy="175.8" r="3" fill="#4f46e5" /><circle cx="160.0" cy="185.6" r="3" fill="#4f46e5" /><circle cx="92.1" cy="205.2" r="3" fill="#4f46e5" /><circle cx="92.1" cy="126.8" r="3" fill="#4f46e5" /><text x="160.0" y="51.0" text-anchor="middle" font-size="10" fill="#475569">回答结构 1</text><text x="262.2" y="110.0" text-anchor="start" font-size="10" fill="#475569">事实密度 1</text><text x="262.2" y="228.0" text-anchor="start" font-size="10" fill="#475569">岗位对齐度 1</text><text x="160.0" y="287.0" text-anchor="middle" font-size="10" fill="#475569">深度与取舍 1</text><text x="57.8" y="228.0" text-anchor="end" font-size="10" fill="#475569">认知边界 4</text><text x="57.8" y="110.0" text-anchor="end" font-size="10" fill="#475569">交互与主动信息获取 4</text></g>
+  </svg>
+  
+</figure>
+    </div>
+    <section class="block">
+  <h3>工作量时间测算</h3>
+  <p class="formula">纯处理时间 = 每日指标数量 × 单项平均处理时长</p>
+  <div class="table-wrap"><table><thead><tr><th>单件耗时（秒）</th><th>纯处理（分钟）</th><th>剩余（分钟）</th><th>可行性</th></tr></thead><tbody><tr><td data-label="单件耗时（秒）">30</td><td data-label="纯处理（分钟）">2</td><td data-label="剩余（分钟）">478</td><td data-label="可行性">轻松完成</td></tr><tr><td data-label="单件耗时（秒）">60</td><td data-label="纯处理（分钟）">3</td><td data-label="剩余（分钟）">477</td><td data-label="可行性">可以完成</td></tr><tr><td data-label="单件耗时（秒）">120</td><td data-label="纯处理（分钟）">6</td><td data-label="剩余（分钟）">474</td><td data-label="可行性">紧张但可行</td></tr><tr><td data-label="单件耗时（秒）">180</td><td data-label="纯处理（分钟）">9</td><td data-label="剩余（分钟）">471</td><td data-label="可行性">不可能完成</td></tr></tbody></table></div>
+  <p class="verdict">按每天 3 个、单件 2 分钟估，纯处理需要约 6 分钟（3 × 2 分钟），8 小时工作日剩余约 474 分钟。这个测算还没算上查看任务、系统切换、等待与记录的时间成本。</p>
+</section>
+    <section class="block">
+  <h3>单位时间回报测算</h3>
+  <p class="formula">单位时间回报 = 实发月收入 ÷ (月工作天数 × 每日净工作时长)</p>
+  <div class="table-wrap"><table><thead><tr><th>情景</th><th>月收入</th><th>月工作天数</th><th>每日时长</th><th>元/小时</th></tr></thead><tbody><tr><td data-label="情景">—</td><td data-label="月收入">—</td><td data-label="月工作天数">22</td><td data-label="每日时长">9</td><td data-label="元/小时">152</td></tr><tr><td data-label="情景">—</td><td data-label="月收入">—</td><td data-label="月工作天数">22</td><td data-label="每日时长">10</td><td data-label="元/小时">114</td></tr><tr><td data-label="情景">—</td><td data-label="月收入">—</td><td data-label="月工作天数">24</td><td data-label="每日时长">12</td><td data-label="元/小时">69</td></tr></tbody></table></div>
+  <p class="verdict">按材料里的数字测算，单位时间回报约 69–152 元/小时（月收入 20000–30000 元 ÷ 月工时 220 小时上下）。三个情景的区别来自休息天数与加班是否另计。</p>
+</section>
+  </section>
+
+  <section class="card">
+    <h2>面试表现</h2>
+    <p class="lead">说到了，但停在概念层</p>
+    <p class="formula">回答 7 段 · 含可核对事实 2 段 · 只有评价性表述 1 段</p>
+    <div class="sub"><span class="sub-title">站得住的部分</span><ul><li>认知边界：1 段回答里明确划出了认知边界，0 段用了含糊表述绕开。</li><li>交互与主动信息获取：我方发言 7 段，其中主动提问 2 段。</li></ul></div>
+    <div class="sub"><span class="sub-title">可以更好的部分</span><ul><li>回答结构：7 段回答里有 0 段出现了显式结构标记（首先 / 其次 / 结论是……），占比 0%。</li><li>事实密度：7 段回答里，2 段含可核对的事实（数字 / 时间 / 动作 / 交付物），1 段只有评价性表述。</li><li>岗位对齐度：岗位涉及 21 个能力关键词，回答里明确回应了 2 个。</li><li>深度与取舍：7 段回答里，1 段讲到了「为什么这么做」或「还考虑过别的做法」。</li></ul></div>
+    <div class="sub"><span class="sub-title">怎么改</span><ul><li><b>回答结构</b>：下次回答先给一句话结论，再补两条依据；实在想不起结构就先用「分三点说」。</li><li><b>事实密度</b>：把「挺熟悉的」换成「在 X 项目里用它做过 Y，结果是 Z」——补上数字、时间或交付物。</li><li><b>岗位对齐度</b>：面试前把岗位要求里的关键词抄出来，每个词准备一句「我用它做过什么」。</li><li><b>深度与取舍</b>：每讲一个做法，补一句「当时还考虑过另一个方案，没选它是因为……」。</li></ul></div>
+  </section>
+
+  <section class="card">
+    <h2>岗位适配度</h2>
+    <p class="lead">这次没有对应的匹配报告，适配度只依据面试里谈到的事实。 可判的 5 项里，最弱的是「② 沟通适配度」（1/5）。注意：有 2 项触碰了你写下的偏好边界。</p>
+    <div class="table-wrap"><table><thead><tr><th>适配维度</th><th>评分</th><th>依据</th></tr></thead><tbody><tr><td data-label="适配维度">② 沟通适配度 <span class="tag bad">触碰边界</span></td><td data-label="评分">1/5</td><td data-label="依据">信息中性，按 3 分起步；与你在档案里写下的偏好 / 边界相冲突</td></tr><tr><td data-label="适配维度">③ 重复劳动适配度</td><td data-label="评分">3/5</td><td data-label="依据">信息中性，按 3 分起步</td></tr><tr><td data-label="适配维度">⑦ 排班适配度 <span class="tag bad">触碰边界</span></td><td data-label="评分">1/5</td><td data-label="依据">信息中性，按 3 分起步；与你在档案里写下的偏好 / 边界相冲突</td></tr><tr><td data-label="适配维度">⑨ 短期过渡适配度</td><td data-label="评分">3/5</td><td data-label="依据">信息中性，按 3 分起步</td></tr><tr><td data-label="适配维度">⑩ 长期发展价值</td><td data-label="评分">3/5</td><td data-label="依据">信息中性，按 3 分起步</td></tr></tbody></table></div>
+    <div class="notice">有 2 项命中了你写下的偏好 / 边界：② 沟通适配度、⑦ 排班适配度。报告只做提示，取舍由你决定。</div>
+  </section>
+
+  <section class="card">
+    <h2>机会侧：这个岗位实际是什么样</h2>
+    <article class="dim partial">
+  <header>
+    <span class="dim-id">D1</span>
+    <h3>实态还原：这个角色到底在干什么</h3>
+    <span class="status status-partial">部分可判</span>
+  </header>
+  <p class="lead">对方用 2 句话描述了这个角色的日常内容。</p>
+  <div class="sub"><span class="sub-title">依据</span><ul><li><span class="basis basis-stated">[原话]</span> 对方明确说到的日常内容：日常工作就是跟产品和客户对接需求，然后做实现和上线，节奏比较快。；你之前做过 RAG 相关的项目吗？ <span class="refs">日常工作就是跟产品和客户对接需求，然, 你之前做过 RAG 相关的项目吗？</span></li></ul></div>
+  
+  <div class="sub"><span class="sub-title">未知项</span><ul><li>日常工作流程的完整链路未被说明</li></ul></div>
+  <div class="sub"><span class="sub-title">这一维度产生的问题</span><ul><li><span class="pri pri-high">high</span> 一个典型工作日的上午和下午分别是怎么安排的？</li></ul></div>
+</article><article class="dim ok">
+  <header>
+    <span class="dim-id">D2</span>
+    <h3>要求拆解：硬性要求与隐性要求</h3>
+    <span class="status status-ok">证据充分</span>
+  </header>
+  <p class="lead">对方明确提到了 5 项硬性安排，隐性要求总体强度为 1/5。</p>
+  <div class="sub"><span class="sub-title">依据</span><ul><li><span class="basis basis-stated">[原话]</span> 明确提到的硬性安排共 5 项，其中最影响判断的是：每月休息多少天、每日任务或指标数量、是否有质量审核或抽检、是否需要加班 <span class="refs">工作时间是早上 10 点到晚上 8 , 每周大概会有 3 到 5 个需求进来, 我们这边对交付质量要求比较高，会做代, 没有硬性的加班要求，做完了就可以走。, 另外我还比较熟悉前端和一些运维相关的</span></li></ul></div>
+  
+  <div class="sub"><span class="sub-title">未知项</span><ul><li>每天工作多少小时：未提及</li><li>是否固定排班：未提及</li><li>是否需要节假日工作：未提及</li><li>是否有业绩或创收指标：未提及</li><li>是否有单次处理时长要求：未提及</li><li>是否有成功率或完成率要求：未提及</li><li>是否有 KPI：未提及</li><li>是否有迟到或未完成任务的处罚：未提及</li><li>是否需要使用特定系统或工具：未提及</li></ul></div>
+  <div class="sub"><span class="sub-title">这一维度产生的问题</span><ul><li><span class="pri pri-high">high</span> 每日任务量是硬性指标还是参考数量？完不成会有什么后果？</li><li><span class="pri pri-medium">medium</span> 试用期的考核标准是什么？转正的判定由谁做？</li></ul></div>
+</article><article class="dim ok">
+  <header>
+    <span class="dim-id">D3</span>
+    <h3>工作量测算</h3>
+    <span class="status status-ok">证据充分</span>
+  </header>
+  <p class="lead">对方给出的数量指标换算后，纯处理时间约 6 分钟／天，可行性判断：轻松完成。</p>
+  <div class="sub"><span class="sub-title">依据</span><ul><li><span class="basis basis-stated">[原话]</span> 材料中出现 1 处数量指标，其中「每周大概会有 3 到 5 个」可用于换算。 <span class="refs">每周大概会有 3 到 5 个需求进来</span></li><li><span class="basis basis-inferred">[推断]</span> 这个测算只用了数量与假设的单件耗时，未包含记录、切换、等待等额外时间成本。 <span class="refs">每周大概会有 3 到 5 个需求进来</span></li></ul></div>
+  <div class="sub"><span class="sub-title">测算</span>
+        <p class="formula">纯处理时间 = 每日指标数量 × 单项平均处理时长</p>
+        <p class="formula">输入：{&quot;daily_quota&quot;:3,&quot;quota_unit&quot;:&quot;个&quot;,&quot;per_item_seconds&quot;:120,&quot;per_item_note&quot;:&quot;假设值：材料里没有给出单件耗时，按 2 分钟估；实际以提问澄清为准&quot;,&quot;available_minutes&quot;:480}</p>
+        <p class="formula">结果：{&quot;pure_minutes&quot;:6,&quot;remaining_minutes&quot;:474,&quot;feasibility&quot;:&quot;轻松完成&quot;}</p>
+        <p class="verdict">按每天 3 个、单件 2 分钟估，纯处理需要约 6 分钟（3 × 2 分钟），8 小时工作日剩余约 474 分钟。这个测算还没算上查看任务、系统切换、等待与记录的时间成本。</p></div>
+  <div class="sub"><span class="sub-title">未知项</span><ul><li>单项平均处理时长未给出（当前用的是假设值）</li><li>口径未说明是「做了多少个」还是「达成多少个」</li></ul></div>
+  <div class="sub"><span class="sub-title">这一维度产生的问题</span><ul><li><span class="pri pri-high">high</span> 「每周大概会有 3 到 5 个」是名义上完成 3 个，还是有效达成 3 个？两者区别是什么？</li><li><span class="pri pri-high">high</span> 平均每项任务的处理时长是多少？有没有时限要求？</li></ul></div>
+</article><article class="dim partial">
+  <header>
+    <span class="dim-id">D4</span>
+    <h3>压力画像</h3>
+    <span class="status status-partial">部分可判</span>
+  </header>
+  <p class="lead">9 类压力中没有出现「高」等级，3 类有信息可判。</p>
+  
+  
+  <div class="sub"><span class="sub-title">未知项</span><ul><li>A. 数量压力：材料里没有依据</li><li>B. 时间压力：材料里没有依据</li><li>C. 业绩压力：材料里没有依据</li><li>D. 情绪压力：材料里没有依据</li><li>F. 注意力压力：材料里没有依据</li><li>I. 身体压力：材料里没有依据</li></ul></div>
+  <div class="sub"><span class="sub-title">这一维度产生的问题</span><ul><li><span class="pri pri-medium">medium</span> 这个岗位最近三个月的离职情况是怎样的？</li><li><span class="pri pri-medium">medium</span> 业务高峰期一般集中在什么时候？那时候的工作节奏是怎样的？</li></ul></div>
+</article><article class="dim partial">
+  <header>
+    <span class="dim-id">D5</span>
+    <h3>名义口径 vs 实际口径</h3>
+    <span class="status status-partial">部分可判</span>
+  </header>
+  <p class="lead">材料里出现 1 处达标类指标，但没有一处说明考核的是名义口径还是实际口径。</p>
+  <div class="sub"><span class="sub-title">依据</span><ul><li><span class="basis basis-inferred">[推断]</span> 「每周大概会有 3 到 5 个」在不同口径下强度差别很大：名义口径是「每周大概会有 3 到 5 个」，实际口径是「真正达成结果的 3 个」，被掩盖的成本是「未被记录的前置成本」。 <span class="refs">每周大概会有 3 到 5 个需求进来</span></li></ul></div>
+  
+  <div class="sub"><span class="sub-title">未知项</span><ul><li>所有指标的考核口径都未说明</li></ul></div>
+  <div class="sub"><span class="sub-title">这一维度产生的问题</span><ul><li><span class="pri pri-high">high</span> 这些指标考核的是完成数量还是达成结果？两者的统计方式有什么不同？</li></ul></div>
+</article><article class="dim partial">
+  <header>
+    <span class="dim-id">D6</span>
+    <h3>工作类型判定</h3>
+    <span class="status status-partial">部分可判</span>
+  </header>
+  <p class="lead">从实际描述看，这个角色最接近：项目管理类、售后/运维类、审核/质检类。</p>
+  <div class="sub"><span class="sub-title">依据</span><ul><li><span class="basis basis-inferred">[推断]</span> 归入「项目管理类」：以规划、进度跟踪、协调资源为主（材料里有 2 处相关表述）。 <span class="refs">每周大概会有 3 到 5 个需求进来, 想问一下，每周 3 到 5 个需求是</span></li><li><span class="basis basis-inferred">[推断]</span> 归入「售后/运维类」：处理售后问题、维护客户或系统稳定（材料里有 1 处相关表述）。 <span class="refs">另外我还比较熟悉前端和一些运维相关的</span></li><li><span class="basis basis-inferred">[推断]</span> 归入「审核/质检类」：以内容审核、质量检查为主（材料里有 1 处相关表述）。 <span class="refs">我们这边对交付质量要求比较高，会做代</span></li></ul></div>
+  
+  <div class="sub"><span class="sub-title">未知项</span><ul><li>工作类型是按描述推断的，岗位名称可能与实际不符</li></ul></div>
+  
+</article><article class="dim ok">
+  <header>
+    <span class="dim-id">D7</span>
+    <h3>个体适配</h3>
+    <span class="status status-ok">证据充分</span>
+  </header>
+  <p class="lead">10 个适配维度中有 5 项可判，其中最低的是「② 沟通适配度」（1/5）。</p>
+  <div class="sub"><span class="sub-title">依据</span><ul><li><span class="basis basis-inferred">[推断]</span> ② 沟通适配度：1/5 —— 信息中性，按 3 分起步；与你在档案里写下的偏好 / 边界相冲突 <span class="refs">你好，A 公司的面试官，先简单说一下</span></li><li><span class="basis basis-inferred">[推断]</span> ③ 重复劳动适配度：3/5 —— 信息中性，按 3 分起步 <span class="refs">你好，A 公司的面试官，先简单说一下</span></li><li><span class="basis basis-inferred">[推断]</span> ⑦ 排班适配度：1/5 —— 信息中性，按 3 分起步；与你在档案里写下的偏好 / 边界相冲突 <span class="refs">你好，A 公司的面试官，先简单说一下</span></li><li><span class="basis basis-inferred">[推断]</span> ⑨ 短期过渡适配度：3/5 —— 信息中性，按 3 分起步 <span class="refs">你好，A 公司的面试官，先简单说一下</span></li><li><span class="basis basis-inferred">[推断]</span> ⑩ 长期发展价值：3/5 —— 信息中性，按 3 分起步 <span class="refs">你好，A 公司的面试官，先简单说一下</span></li></ul></div>
+  
+  <div class="sub"><span class="sub-title">未知项</span><ul><li>① 技能适配度：这次面试没有谈到</li><li>④ 注意力适配度：这次面试没有谈到</li><li>⑤ 情绪压力适配度：这次面试没有谈到</li><li>⑥ KPI 适配度：这次面试没有谈到</li><li>⑧ 身体劳动适配度：这次面试没有谈到</li></ul></div>
+  <div class="sub"><span class="sub-title">这一维度产生的问题</span><ul><li><span class="pri pri-high">high</span> 这个岗位在这方面的实际投入，和你现在能接受的范围差多少？</li></ul></div>
+</article><article class="dim partial">
+  <header>
+    <span class="dim-id">D8</span>
+    <h3>持续性推演：能不能撑住</h3>
+    <span class="status status-partial">部分可判</span>
+  </header>
+  <p class="lead">按三个时间尺度看：第一天与第一周的障碍主要来自「信息不足」，第一个月的关键变量是这些压力是否持续叠加。</p>
+  <div class="sub"><span class="sub-title">依据</span><ul><li><span class="basis basis-inferred">[推断]</span> 新鲜感消退后，最先出现问题的是：任务量是否与描述一致。 <span class="refs">你好，A 公司的面试官，先简单说一下, 我们这边主要是做 AI 应用落地，给</span></li><li><span class="basis basis-inferred">[推断]</span> 以上是机制层面的推演，不是对结果的预测。 <span class="refs">你好，A 公司的面试官，先简单说一下</span></li></ul></div>
+  
+  <div class="sub"><span class="sub-title">未知项</span><ul><li>没有对方关于团队人员流动与上手周期的具体说明</li></ul></div>
+  <div class="sub"><span class="sub-title">这一维度产生的问题</span><ul><li><span class="pri pri-medium">medium</span> 上手期一般多久？期间有没有明确的产出要求？</li></ul></div>
+</article><article class="dim ok">
+  <header>
+    <span class="dim-id">D9</span>
+    <h3>话术风险扫描</h3>
+    <span class="status status-ok">证据充分</span>
+  </header>
+  <p class="lead">命中 5 类风险信号。命中的是**表述方式**，不等于对方在说谎 —— 每条都给出了正面理解与验证方法。</p>
+  <div class="sub"><span class="sub-title">依据</span><ul><li><span class="basis basis-stated">[原话]</span> 「模糊限定词」：「每周大概会有 3 到 5 个需求进来，主要看客户的排期。」—— 正面理解：对方在描述一个波动区间，而不是承诺一个固定值；反面理解：模糊词后面往往藏着比字面更高的实际要求 <span class="refs">每周大概会有 3 到 5 个需求进来</span></li><li><span class="basis basis-stated">[原话]</span> 「归因个人型」：「薪资的话是 20 到 30K，上不封顶，主要看个人能力。」—— 正面理解：确实存在不同的成长速度；反面理解：把「没有配套支持」说成了「给你发挥空间」 <span class="refs">薪资的话是 20 到 30K，上不封</span></li><li><span class="basis basis-stated">[原话]</span> 「宽幅薪资型」：「薪资的话是 20 到 30K，上不封顶，主要看个人能力。」—— 正面理解：确实存在靠业绩上浮的空间；反面理解：区间下端是保底、上端是理想值，两者对应的工作强度完全不同 <span class="refs">薪资的话是 20 到 30K，上不封</span></li><li><span class="basis basis-stated">[原话]</span> 「回避具体型」：「这个看情况，正常都能完成，主要看个人效率。」—— 正面理解：确实受很多变量影响，难以提前给出；反面理解：具体的、可验证的信息被绕开了 <span class="refs">这个看情况，正常都能完成，主要看个人</span></li><li><span class="basis basis-stated">[原话]</span> 「只谈成长型」：「我们团队氛围挺好的，大家都比较拼，成长也快。」—— 正面理解：岗位确实能带来经验积累；反面理解：用「成长」替代了实际工作内容与回报的说明 <span class="refs">我们团队氛围挺好的，大家都比较拼，成</span></li></ul></div>
+  
+  
+  <div class="sub"><span class="sub-title">这一维度产生的问题</span><ul><li><span class="pri pri-high">high</span> 这个「平均」是怎么算出来的？最好的一天和最差的一天分别是多少？</li><li><span class="pri pri-high">high</span> 带我的人是谁、他有多少时间带我？有没有书面的上手流程？</li><li><span class="pri pri-high">high</span> 这个区间的下限和上限分别对应什么条件？书面写进合同的是哪一部分？</li></ul></div>
+</article><article class="dim partial">
+  <header>
+    <span class="dim-id">D10</span>
+    <h3>实际回报测算</h3>
+    <span class="status status-partial">部分可判</span>
+  </header>
+  <p class="lead">按材料中的薪酬与工时估算，单位时间回报约 69–152 元/小时。</p>
+  <div class="sub"><span class="sub-title">依据</span><ul><li><span class="basis basis-stated">[原话]</span> 材料中出现的薪酬信息：「20 到 30K」。 <span class="refs">薪资的话是 20 到 30K，上不封</span></li><li><span class="basis basis-stated">[原话]</span> 休息安排：「双休」，据此估算月工作 22 天、每日净工作 10 小时。 <span class="refs">工作时间是早上 10 点到晚上 8 </span></li></ul></div>
+  <div class="sub"><span class="sub-title">测算</span>
+        <p class="formula">单位时间回报 = 实发月收入 ÷ (月工作天数 × 每日净工作时长)</p>
+        <p class="formula">输入：{&quot;monthly_income&quot;:25000,&quot;work_days_per_month&quot;:22,&quot;daily_hours&quot;:10}</p>
+        <p class="formula">结果：{&quot;hourly_min&quot;:69,&quot;hourly_max&quot;:152}</p>
+        <p class="verdict">按材料里的数字测算，单位时间回报约 69–152 元/小时（月收入 20000–30000 元 ÷ 月工时 220 小时上下）。三个情景的区别来自休息天数与加班是否另计。</p></div>
+  <div class="sub"><span class="sub-title">未知项</span><ul><li>薪资区间的构成（基本工资 / 绩效比例）未说明</li><li>加班是否另计、社保个人承担部分未说明</li></ul></div>
+  <div class="sub"><span class="sub-title">这一维度产生的问题</span><ul><li><span class="pri pri-high">high</span> 薪资区间的构成是什么？写入合同的基本工资是多少？</li><li><span class="pri pri-high">high</span> 是否需要加班？加班费怎么算？法定节假日怎么计算工资？</li></ul></div>
+</article><article class="dim ok">
+  <header>
+    <span class="dim-id">D11</span>
+    <h3>还需要问清的问题</h3>
+    <span class="status status-ok">证据充分</span>
+  </header>
+  <p class="lead">共 15 个问题，按「工作量与 KPI / 薪酬与福利 / 时间与排班 / 环境与内容 / 组织与岗位」分组。</p>
+  
+  
+  
+  <div class="sub"><span class="sub-title">这一维度产生的问题</span><ul><li><span class="pri pri-high">high</span> 一个典型工作日的上午和下午分别是怎么安排的？</li><li><span class="pri pri-high">high</span> 每日任务量是硬性指标还是参考数量？完不成会有什么后果？</li><li><span class="pri pri-medium">medium</span> 试用期的考核标准是什么？转正的判定由谁做？</li><li><span class="pri pri-high">high</span> 「每周大概会有 3 到 5 个」是名义上完成 3 个，还是有效达成 3 个？两者区别是什么？</li><li><span class="pri pri-high">high</span> 平均每项任务的处理时长是多少？有没有时限要求？</li><li><span class="pri pri-medium">medium</span> 这个岗位最近三个月的离职情况是怎样的？</li><li><span class="pri pri-medium">medium</span> 业务高峰期一般集中在什么时候？那时候的工作节奏是怎样的？</li><li><span class="pri pri-high">high</span> 这些指标考核的是完成数量还是达成结果？两者的统计方式有什么不同？</li><li><span class="pri pri-high">high</span> 这个岗位在这方面的实际投入，和你现在能接受的范围差多少？</li><li><span class="pri pri-medium">medium</span> 上手期一般多久？期间有没有明确的产出要求？</li><li><span class="pri pri-high">high</span> 这个「平均」是怎么算出来的？最好的一天和最差的一天分别是多少？</li><li><span class="pri pri-high">high</span> 带我的人是谁、他有多少时间带我？有没有书面的上手流程？</li><li><span class="pri pri-high">high</span> 这个区间的下限和上限分别对应什么条件？书面写进合同的是哪一部分？</li><li><span class="pri pri-high">high</span> 薪资区间的构成是什么？写入合同的基本工资是多少？</li><li><span class="pri pri-high">high</span> 是否需要加班？加班费怎么算？法定节假日怎么计算工资？</li></ul></div>
+</article><article class="dim ok">
+  <header>
+    <span class="dim-id">D12</span>
+    <h3>情景推演与决策表</h3>
+    <span class="status status-ok">证据充分</span>
+  </header>
+  <p class="lead">按现有材料归入「需要谨慎」。</p>
+  
+  
+  
+  
+</article>
+  </section>
+
+  <section class="card">
+    <h2>表现侧：我这次答得怎么样</h2>
+    <article class="dim ok">
+  <header>
+    <span class="dim-id">P1</span>
+    <h3>回答结构</h3>
+    <span class="status status-ok">证据充分</span>
+  </header>
+  <p class="lead">7 段回答里有 0 段出现了显式结构标记（首先 / 其次 / 结论是……），占比 0%。</p>
+  <div class="sub"><span class="sub-title">依据</span><ul><li><span class="basis basis-inferred">[推断]</span> 有结构标记的回答占 0%；结构清晰指的是「先给结论，再说依据」，而不是说得长。 <span class="refs">B 公司我用 Python 加上向量, 当时切分粒度太粗导致召回不准，后来按, 另外我还比较熟悉前端和一些运维相关的</span></li></ul></div>
+  
+  
+  
+</article><article class="dim ok">
+  <header>
+    <span class="dim-id">P2</span>
+    <h3>事实密度</h3>
+    <span class="status status-ok">证据充分</span>
+  </header>
+  <p class="lead">7 段回答里，2 段含可核对的事实（数字 / 时间 / 动作 / 交付物），1 段只有评价性表述。</p>
+  <div class="sub"><span class="sub-title">依据</span><ul><li><span class="basis basis-inferred">[推断]</span> 事实密度 29%。事实是指别人能拿去核对的东西，而不是听起来有把握的表述。 <span class="refs">B 公司我用 Python 加上向量, 想问一下，每周 3 到 5 个需求是</span></li><li><span class="basis basis-inferred">[推断]</span> 有 1 段回答只给出评价性表述（例如「挺熟悉的」），没有跟上具体做过什么。 <span class="refs">另外我还比较熟悉前端和一些运维相关的</span></li></ul></div>
+  
+  <div class="sub"><span class="sub-title">未知项</span><ul><li>有回答缺少可核对的事实</li></ul></div>
+  
+</article><article class="dim ok">
+  <header>
+    <span class="dim-id">P3</span>
+    <h3>岗位对齐度</h3>
+    <span class="status status-ok">证据充分</span>
+  </header>
+  <p class="lead">岗位涉及 21 个能力关键词，回答里明确回应了 2 个。</p>
+  <div class="sub"><span class="sub-title">依据</span><ul><li><span class="basis basis-inferred">[推断]</span> 岗位要求里出现、但回答中没有回应的关键词：Agent 开发、Function Calling / 工具调用、工作流编排、模型量化/本地部署、学历：本科及以上、大语言模型应用。没提到不等于不会，只说明这次没说。 <span class="refs">B 公司我用 Python 加上向量, 当时切分粒度太粗导致召回不准，后来按, 另外我还比较熟悉前端和一些运维相关的</span></li></ul></div>
+  
+  
+  
+</article><article class="dim ok">
+  <header>
+    <span class="dim-id">P4</span>
+    <h3>深度与取舍</h3>
+    <span class="status status-ok">证据充分</span>
+  </header>
+  <p class="lead">7 段回答里，1 段讲到了「为什么这么做」或「还考虑过别的做法」。</p>
+  <div class="sub"><span class="sub-title">依据</span><ul><li><span class="basis basis-inferred">[推断]</span> 讲清取舍的回答占 14%。深度体现在「为什么选这个方案」和「放弃了什么」，不在于用了多少工具。 <span class="refs">向量库索引调优我还没深入，多路召回的</span></li></ul></div>
+  
+  
+  
+</article><article class="dim ok">
+  <header>
+    <span class="dim-id">P5</span>
+    <h3>认知边界</h3>
+    <span class="status status-ok">证据充分</span>
+  </header>
+  <p class="lead">1 段回答里明确划出了认知边界，0 段用了含糊表述绕开。</p>
+  <div class="sub"><span class="sub-title">依据</span><ul><li><span class="basis basis-inferred">[推断]</span> 对不会的部分说「这块我没深入过」是加分项 —— 面试官据此判断的是可信度，不是能力上限。 <span class="refs">向量库索引调优我还没深入，多路召回的</span></li></ul></div>
+  
+  
+  
+</article><article class="dim ok">
+  <header>
+    <span class="dim-id">P6</span>
+    <h3>交互与主动信息获取</h3>
+    <span class="status status-ok">证据充分</span>
+  </header>
+  <p class="lead">我方发言 7 段，其中主动提问 2 段。</p>
+  <div class="sub"><span class="sub-title">依据</span><ul><li><span class="basis basis-inferred">[推断]</span> 主动提问的内容包括：想问一下，每周 3 到 5 个需求是排期数量还是必须交付的数量？；好的，那我想了解一下团队现在有多少人，我进来是负责哪一块？。 <span class="refs">想问一下，每周 3 到 5 个需求是, 好的，那我想了解一下团队现在有多少人</span></li></ul></div>
+  
+  
+  
+</article>
+  </section>
+
+  <section class="card"><h2>还需要问清的问题</h2><div class="qgroup"><h3>关于工作环境和内容</h3><ul><li><span class="pri pri-high">high</span> 一个典型工作日的上午和下午分别是怎么安排的？</li></ul></div><div class="qgroup"><h3>关于工作量和 KPI</h3><ul><li><span class="pri pri-high">high</span> 每日任务量是硬性指标还是参考数量？完不成会有什么后果？</li><li><span class="pri pri-high">high</span> 「每周大概会有 3 到 5 个」是名义上完成 3 个，还是有效达成 3 个？两者区别是什么？</li><li><span class="pri pri-high">high</span> 平均每项任务的处理时长是多少？有没有时限要求？</li><li><span class="pri pri-medium">medium</span> 业务高峰期一般集中在什么时候？那时候的工作节奏是怎样的？</li><li><span class="pri pri-high">high</span> 这些指标考核的是完成数量还是达成结果？两者的统计方式有什么不同？</li></ul></div><div class="qgroup"><h3>关于组织和岗位</h3><ul><li><span class="pri pri-medium">medium</span> 试用期的考核标准是什么？转正的判定由谁做？</li><li><span class="pri pri-medium">medium</span> 这个岗位最近三个月的离职情况是怎样的？</li><li><span class="pri pri-medium">medium</span> 上手期一般多久？期间有没有明确的产出要求？</li><li><span class="pri pri-high">high</span> 这个「平均」是怎么算出来的？最好的一天和最差的一天分别是多少？</li><li><span class="pri pri-high">high</span> 带我的人是谁、他有多少时间带我？有没有书面的上手流程？</li><li><span class="pri pri-high">high</span> 这个区间的下限和上限分别对应什么条件？书面写进合同的是哪一部分？</li></ul></div><div class="qgroup"><h3>关于我自己的表达改进</h3><ul><li><span class="pri pri-high">high</span> 这个岗位在这方面的实际投入，和你现在能接受的范围差多少？</li></ul></div><div class="qgroup"><h3>关于薪酬和福利</h3><ul><li><span class="pri pri-high">high</span> 薪资区间的构成是什么？写入合同的基本工资是多少？</li><li><span class="pri pri-high">high</span> 是否需要加班？加班费怎么算？法定节假日怎么计算工资？</li></ul></div></section>
+
+  <section class="card">
+    <h2>三档决策表</h2>
+    <div class="table-wrap"><table><thead><tr><th>分类</th><th>触发条件</th></tr></thead><tbody><tr><td data-label="分类">可以考虑</td><td data-label="触发条件">工作量测算在 8 小时内可行<br>没有出现「高」等级的压力类型<br>薪酬与工时信息给出了区间与算式，可以自己复算</td></tr><tr><td data-label="分类">需要谨慎</td><td data-label="触发条件">命中 5 类风险话术，需要按报告里的问题逐条确认<br>数量指标的口径未说明（名义 vs 实际）</td></tr><tr><td data-label="分类">明显不匹配</td><td data-label="触发条件">—</td></tr></tbody></table></div>
+    <div style="margin-top:16px"><h2>三种情景推演</h2><div class="qgroup"><h3>情景 A · 对方描述基本可信</h3><ul><li><b>成立条件：</b>对方关于工作量与待遇的说法都属实，指标口径与实际执行一致</li><li><b>实际会是什么样：</b>按目前的数量与节奏，这是可以长期维持的工作强度</li><li><b>适合什么人：</b>适合能接受这类节奏、且不依赖频繁变化的人</li></ul></div><div class="qgroup"><h3>情景 B · 描述存在明显水分</h3><ul><li><b>会出现什么：</b>已命中 5 类风险话术，实际要求大概率高于字面描述</li><li><b>最坏情况：</b>最坏情况是任务量与收入都偏离预期，且「成长」这类说法无法兑现</li><li><b>如何应对：</b>最有效的应对是在入职前把指标口径、加班计算、试用期考核落到书面</li></ul></div><div class="qgroup"><h3>情景 C · 我有特定的优先需求</h3><ul><li><b>最该重点观察的指标：</b>最需要盯的两个数字：单位时间回报，以及月工作天数</li><li><b>判断是否止损的信号：</b>如果连续两次追问都得不到具体回答，说明信息不透明本身就是信号</li></ul></div></div>
+  </section>
+
+  
+
+  <section class="card">
+    <h2>附录：证据索引</h2>
+    <p class="sub" style="color:#64748b">下面是报告里引用过的全部原子事实。所有结论都只能来自这里。</p>
+    <div class="table-wrap"><table><thead><tr>
+      <th>编号</th><th>原话</th><th>说话人</th><th>类型</th><th>主题</th><th>一致性</th>
+    </tr></thead><tbody><tr><td data-label="编号">E1</td><td data-label="原话">你好，A 公司的面试官，先简单说一下这个岗位。</td><td data-label="说话人">面试方</td><td data-label="类型">事实</td><td data-label="主题">其他</td><td data-label="一致性">—</td></tr><tr><td data-label="编号">E2</td><td data-label="原话">我们这边主要是做 AI 应用落地，给企业客户做智能问答和文档处理。</td><td data-label="说话人">面试方</td><td data-label="类型">事实</td><td data-label="主题">其他</td><td data-label="一致性">—</td></tr><tr><td data-label="编号">E3</td><td data-label="原话">日常工作就是跟产品和客户对接需求，然后做实现和上线，节奏比较快。</td><td data-label="说话人">面试方</td><td data-label="类型">事实</td><td data-label="主题">工作内容</td><td data-label="一致性">—</td></tr><tr><td data-label="编号">E4</td><td data-label="原话">每周大概会有 3 到 5 个需求进来，主要看客户的排期。</td><td data-label="说话人">面试方</td><td data-label="类型">数字</td><td data-label="主题">其他</td><td data-label="一致性">—</td></tr><tr><td data-label="编号">E5</td><td data-label="原话">工作时间是早上 10 点到晚上 8 点，双休，不过遇到项目上线节点可能会晚一点，这个不强制。</td><td data-label="说话人">面试方</td><td data-label="类型">数字</td><td data-label="主题">时间与排班</td><td data-label="一致性">—</td></tr><tr><td data-label="编号">E6</td><td data-label="原话">薪资的话是 20 到 30K，上不封顶，主要看个人能力。</td><td data-label="说话人">面试方</td><td data-label="类型">数字</td><td data-label="主题">薪酬</td><td data-label="一致性">—</td></tr><tr><td data-label="编号">E7</td><td data-label="原话">我们团队氛围挺好的，大家都比较拼，成长也快。</td><td data-label="说话人">面试方</td><td data-label="类型">主张</td><td data-label="主题">环境与关系</td><td data-label="一致性">—</td></tr><tr><td data-label="编号">E8</td><td data-label="原话">没有硬性的加班要求，做完了就可以走。</td><td data-label="说话人">面试方</td><td data-label="类型">事实</td><td data-label="主题">时间与排班</td><td data-label="一致性">—</td></tr><tr><td data-label="编号">E9</td><td data-label="原话">你之前做过 RAG 相关的项目吗？</td><td data-label="说话人">面试方</td><td data-label="类型">事实</td><td data-label="主题">工作内容</td><td data-label="一致性">—</td></tr><tr><td data-label="编号">E10</td><td data-label="原话">B 公司我用 Python 加上向量库做过一个内部知识库问答，接入了 300 多份文档，负责检索这一块，上线后准确率从 61% 提升到 84%。</td><td data-label="说话人">我</td><td data-label="类型">数字</td><td data-label="主题">工作内容</td><td data-label="一致性">—</td></tr><tr><td data-label="编号">E11</td><td data-label="原话">当时切分粒度太粗导致召回不准，后来按标题层级切分并加了重排，这块是我主导的。</td><td data-label="说话人">我</td><td data-label="类型">事实</td><td data-label="主题">面试表现</td><td data-label="一致性">—</td></tr><tr><td data-label="编号">E12</td><td data-label="原话">另外我还比较熟悉前端和一些运维相关的东西，基本都能上手。</td><td data-label="说话人">我</td><td data-label="类型">事实</td><td data-label="主题">面试表现</td><td data-label="一致性">—</td></tr><tr><td data-label="编号">E13</td><td data-label="原话">那你觉得这套方案还有什么不足？</td><td data-label="说话人">面试方</td><td data-label="类型">事实</td><td data-label="主题">其他</td><td data-label="一致性">—</td></tr><tr><td data-label="编号">E14</td><td data-label="原话">向量库索引调优我还没深入，多路召回的策略也不太确定，这块算是我的盲区。</td><td data-label="说话人">我</td><td data-label="类型">事实</td><td data-label="主题">面试表现</td><td data-label="一致性">—</td></tr><tr><td data-label="编号">E15</td><td data-label="原话">不过我觉得思路应该是通的，给我点时间应该能补上。</td><td data-label="说话人">我</td><td data-label="类型">事实</td><td data-label="主题">面试表现</td><td data-label="一致性">—</td></tr><tr><td data-label="编号">E16</td><td data-label="原话">我们这边对交付质量要求比较高，会做代码评审和上线后的质量抽检。</td><td data-label="说话人">面试方</td><td data-label="类型">事实</td><td data-label="主题">要求与门槛</td><td data-label="一致性">—</td></tr><tr><td data-label="编号">E17</td><td data-label="原话">试用期是三个月，期间会有导师带你，不过主要还是靠你自己摸索。</td><td data-label="说话人">面试方</td><td data-label="类型">事实</td><td data-label="主题">其他</td><td data-label="一致性">—</td></tr><tr><td data-label="编号">E18</td><td data-label="原话">差不多就是这些，你有什么想问我的吗？</td><td data-label="说话人">面试方</td><td data-label="类型">事实</td><td data-label="主题">其他</td><td data-label="一致性">—</td></tr><tr><td data-label="编号">E19</td><td data-label="原话">想问一下，每周 3 到 5 个需求是排期数量还是必须交付的数量？</td><td data-label="说话人">我</td><td data-label="类型">数字</td><td data-label="主题">要求与门槛</td><td data-label="一致性">—</td></tr><tr><td data-label="编号">E20</td><td data-label="原话">这个看情况，正常都能完成，主要看个人效率。</td><td data-label="说话人">面试方</td><td data-label="类型">回避</td><td data-label="主题">其他</td><td data-label="一致性">—</td></tr><tr><td data-label="编号">E21</td><td data-label="原话">好的，那我想了解一下团队现在有多少人，我进来是负责哪一块？</td><td data-label="说话人">我</td><td data-label="类型">事实</td><td data-label="主题">环境与关系</td><td data-label="一致性">—</td></tr><tr><td data-label="编号">E22</td><td data-label="原话">团队现在 6 个人，你进来主要负责检索和问答这条线。</td><td data-label="说话人">面试方</td><td data-label="类型">数字</td><td data-label="主题">环境与关系</td><td data-label="一致性">—</td></tr></tbody></table></div>
+  </section>
+
+  <p class="footer">本报告由录音转写推导而来，只反映「录音里能听到的内容」。转写可能出错，说话人也可能被识别错，重要结论请回看原始录音确认。报告不评价面试官，也不预测面试结果。<br>本报告不替你做决定，只把做决定所需的信息整理清楚。它描述的是「录音里能听到的内容」，面试官的实际评价不在其中。</p>
+</div>
+<script type="application/json" id="report-data">{"id":"debrief_8be6e65fad3e447a","schemaVersion":1,"createdAt":"2026-10-08T09:32:06.988Z","domain":"interview-debrief","sessionId":"sample_session","profileId":"sample_profile","jobTitle":"AI 应用开发工程师","meta":{"title":"AI 应用开发工程师 · 面试复盘","mode":"onsite","sources":{"mic":true,"system":false},"quiet":true,"durationMs":2520000,"anonymized":true,"confidence":"medium","transcriptChars":765,"speakers":["interviewer","candidate"],"completeness":"full","limitations":[],"engine":"rule"},"evidence":[{"id":"E1","quote":"你好，A 公司的面试官，先简单说一下这个岗位。","speaker":"interviewer","type":"fact","topic":"other","consistency":"unique"},{"id":"E2","quote":"我们这边主要是做 AI 应用落地，给企业客户做智能问答和文档处理。","speaker":"interviewer","type":"fact","topic":"other","consistency":"unique"},{"id":"E3","quote":"日常工作就是跟产品和客户对接需求，然后做实现和上线，节奏比较快。","speaker":"interviewer","type":"fact","topic":"content","consistency":"unique"},{"id":"E4","quote":"每周大概会有 3 到 5 个需求进来，主要看客户的排期。","speaker":"interviewer","type":"number","topic":"other","consistency":"unique"},{"id":"E5","quote":"工作时间是早上 10 点到晚上 8 点，双休，不过遇到项目上线节点可能会晚一点，这个不强制。","speaker":"interviewer","type":"number","topic":"schedule","consistency":"unique"},{"id":"E6","quote":"薪资的话是 20 到 30K，上不封顶，主要看个人能力。","speaker":"interviewer","type":"number","topic":"pay","consistency":"unique"},{"id":"E7","quote":"我们团队氛围挺好的，大家都比较拼，成长也快。","speaker":"interviewer","type":"claim","topic":"environment","consistency":"unique"},{"id":"E8","quote":"没有硬性的加班要求，做完了就可以走。","speaker":"interviewer","type":"fact","topic":"schedule","consistency":"unique"},{"id":"E9","quote":"你之前做过 RAG 相关的项目吗？","speaker":"interviewer","type":"fact","topic":"content","consistency":"unique"},{"id":"E10","quote":"B 公司我用 Python 加上向量库做过一个内部知识库问答，接入了 300 多份文档，负责检索这一块，上线后准确率从 61% 提升到 84%。","speaker":"candidate","type":"number","topic":"content","consistency":"unique"},{"id":"E11","quote":"当时切分粒度太粗导致召回不准，后来按标题层级切分并加了重排，这块是我主导的。","speaker":"candidate","type":"fact","topic":"performance","consistency":"unique"},{"id":"E12","quote":"另外我还比较熟悉前端和一些运维相关的东西，基本都能上手。","speaker":"candidate","type":"fact","topic":"performance","consistency":"unique"},{"id":"E13","quote":"那你觉得这套方案还有什么不足？","speaker":"interviewer","type":"fact","topic":"other","consistency":"unique"},{"id":"E14","quote":"向量库索引调优我还没深入，多路召回的策略也不太确定，这块算是我的盲区。","speaker":"candidate","type":"fact","topic":"performance","consistency":"unique"},{"id":"E15","quote":"不过我觉得思路应该是通的，给我点时间应该能补上。","speaker":"candidate","type":"fact","topic":"performance","consistency":"unique"},{"id":"E16","quote":"我们这边对交付质量要求比较高，会做代码评审和上线后的质量抽检。","speaker":"interviewer","type":"fact","topic":"requirement","consistency":"unique"},{"id":"E17","quote":"试用期是三个月，期间会有导师带你，不过主要还是靠你自己摸索。","speaker":"interviewer","type":"fact","topic":"other","consistency":"unique"},{"id":"E18","quote":"差不多就是这些，你有什么想问我的吗？","speaker":"interviewer","type":"fact","topic":"other","consistency":"unique"},{"id":"E19","quote":"想问一下，每周 3 到 5 个需求是排期数量还是必须交付的数量？","speaker":"candidate","type":"number","topic":"requirement","consistency":"unique"},{"id":"E20","quote":"这个看情况，正常都能完成，主要看个人效率。","speaker":"interviewer","type":"evasion","topic":"other","consistency":"unique"},{"id":"E21","quote":"好的，那我想了解一下团队现在有多少人，我进来是负责哪一块？","speaker":"candidate","type":"fact","topic":"environment","consistency":"unique"},{"id":"E22","quote":"团队现在 6 个人，你进来主要负责检索和问答这条线。","speaker":"interviewer","type":"number","topic":"environment","consistency":"unique"}],"dimensions":[{"id":"D1","kind":"opportunity","key":"reality","name":"实态还原：这个角色到底在干什么","goal":"用外行能懂的话还原真实工作流程，而不是复述对方的岗位描述。","status":"partial","basis":"stated","verdictLine":"对方用 2 句话描述了这个角色的日常内容。","findings":[{"text":"对方明确说到的日常内容：日常工作就是跟产品和客户对接需求，然后做实现和上线，节奏比较快。；你之前做过 RAG 相关的项目吗？","basis":"stated","evidenceIds":["E3","E9"]}],"extras":{"realityFlow":"上班 → 沟通对接 → 交付 → 下班","contentQuotes":[{"id":"E3","quote":"日常工作就是跟产品和客户对接需求，然后做实现和上线，节奏比较快。"},{"id":"E9","quote":"你之前做过 RAG 相关的项目吗？"}]},"computation":null,"scores":{},"unknowns":["日常工作流程的完整链路未被说明"],"questions":[{"text":"一个典型工作日的上午和下午分别是怎么安排的？","priority":"high","category":"environment_content","targets":"D1"}],"evidenceIds":["E3","E9"]},{"id":"D2","kind":"opportunity","key":"requirements","name":"要求拆解：硬性要求与隐性要求","goal":"把要求拆成「可量化或明确规定的硬性条件」与「实际存在但没写出来的软性代价」。","status":"ok","basis":"stated","verdictLine":"对方明确提到了 5 项硬性安排，隐性要求总体强度为 1/5。","findings":[{"text":"明确提到的硬性安排共 5 项，其中最影响判断的是：每月休息多少天、每日任务或指标数量、是否有质量审核或抽检、是否需要加班","basis":"stated","evidenceIds":["E5","E4","E16","E8","E12"]}],"extras":{"checklistResults":[{"key":"daily_hours","result":"未知"},{"key":"rest_days","result":"满足"},{"key":"fixed_shift","result":"未知"},{"key":"holiday_work","result":"未知"},{"key":"daily_quota","result":"满足"},{"key":"revenue_kpi","result":"未知"},{"key":"per_item_duration","result":"未知"},{"key":"success_rate","result":"未知"},{"key":"qa_audit","result":"满足"},{"key":"kpi_aggregate","result":"未知"},{"key":"penalty","result":"未知"},{"key":"overtime","result":"满足"},{"key":"training","result":"满足"},{"key":"tools","result":"未知"}],"implicitRequirements":[{"key":"continuous_output","intensity":1,"reason":"材料里没有提到"},{"key":"rejection","intensity":1,"reason":"材料里没有提到"},{"key":"negative_emotion","intensity":1,"reason":"材料里没有提到"},{"key":"persuasion","intensity":1,"reason":"材料里没有提到"},{"key":"fast_reaction","intensity":1,"reason":"材料里没有提到"},{"key":"sustained_attention","intensity":1,"reason":"材料里没有提到"},{"key":"complex_memory","intensity":1,"reason":"材料里没有提到"},{"key":"multitasking","intensity":1,"reason":"材料里没有提到"},{"key":"monitoring_tolerance","intensity":1,"reason":"材料里没有提到"},{"key":"dual_pressure","intensity":1,"reason":"材料里没有提到"}]},"computation":null,"scores":{"implicit_requirement_intensity":1},"unknowns":["每天工作多少小时：未提及","是否固定排班：未提及","是否需要节假日工作：未提及","是否有业绩或创收指标：未提及","是否有单次处理时长要求：未提及","是否有成功率或完成率要求：未提及","是否有 KPI：未提及","是否有迟到或未完成任务的处罚：未提及","是否需要使用特定系统或工具：未提及"],"questions":[{"text":"每日任务量是硬性指标还是参考数量？完不成会有什么后果？","priority":"high","category":"workload_kpi","targets":"D2"},{"text":"试用期的考核标准是什么？转正的判定由谁做？","priority":"medium","category":"org_position","targets":"D2"}],"evidenceIds":["E5","E4","E16","E8","E12"]},{"id":"D3","kind":"opportunity","key":"workload_math","name":"工作量测算","goal":"把关键数量指标换算成时间，判断在正常工作日内是否物理可行。","status":"ok","basis":"stated","verdictLine":"对方给出的数量指标换算后，纯处理时间约 6 分钟／天，可行性判断：轻松完成。","findings":[{"text":"材料中出现 1 处数量指标，其中「每周大概会有 3 到 5 个」可用于换算。","basis":"stated","evidenceIds":["E4"]},{"text":"这个测算只用了数量与假设的单件耗时，未包含记录、切换、等待等额外时间成本。","basis":"inferred","evidenceIds":["E4"]}],"extras":{"workloadTable":[{"perItemSeconds":30,"pureMinutes":2,"remainingMinutes":478,"feasibility":"轻松完成"},{"perItemSeconds":60,"pureMinutes":3,"remainingMinutes":477,"feasibility":"可以完成"},{"perItemSeconds":120,"pureMinutes":6,"remainingMinutes":474,"feasibility":"紧张但可行"},{"perItemSeconds":180,"pureMinutes":9,"remainingMinutes":471,"feasibility":"不可能完成"}],"quotas":[{"raw":"每周大概会有 3 到 5 个","count":3,"unit":"个","period":"week","evidenceId":"E4"}]},"computation":{"formula":"纯处理时间 = 每日指标数量 × 单项平均处理时长","inputs":{"daily_quota":3,"quota_unit":"个","per_item_seconds":120,"per_item_note":"假设值：材料里没有给出单件耗时，按 2 分钟估；实际以提问澄清为准","available_minutes":480},"result":{"pure_minutes":6,"remaining_minutes":474,"feasibility":"轻松完成"},"verdict":"按每天 3 个、单件 2 分钟估，纯处理需要约 6 分钟（3 × 2 分钟），8 小时工作日剩余约 474 分钟。这个测算还没算上查看任务、系统切换、等待与记录的时间成本。"},"scores":{"quantity_pressure":2,"time_pressure":3},"unknowns":["单项平均处理时长未给出（当前用的是假设值）","口径未说明是「做了多少个」还是「达成多少个」"],"questions":[{"text":"「每周大概会有 3 到 5 个」是名义上完成 3 个，还是有效达成 3 个？两者区别是什么？","priority":"high","category":"workload_kpi","targets":"D3"},{"text":"平均每项任务的处理时长是多少？有没有时限要求？","priority":"high","category":"workload_kpi","targets":"D3"}],"evidenceIds":["E4"]},{"id":"D4","kind":"opportunity","key":"stress","name":"压力画像","goal":"把「压力大」拆成可分别定级的压力类型，每类独立给等级和依据。","status":"partial","basis":"inferred","verdictLine":"9 类压力中没有出现「高」等级，3 类有信息可判。","findings":[],"extras":{"stressLevels":[{"key":"quantity","level":"unknown","evidenceIds":[]},{"key":"time","level":"unknown","evidenceIds":[]},{"key":"performance","level":"unknown","evidenceIds":[]},{"key":"emotion","level":"unknown","evidenceIds":[]},{"key":"monitoring","level":"medium","evidenceIds":["E16"]},{"key":"attention","level":"unknown","evidenceIds":[]},{"key":"communication","level":"medium","evidenceIds":["E3"]},{"key":"schedule","level":"medium","evidenceIds":["E8"]},{"key":"physical","level":"unknown","evidenceIds":[]}]},"computation":null,"scores":{"quantity":"unknown","time":"unknown","performance":"unknown","emotion":"unknown","monitoring":"medium","attention":"unknown","communication":"medium","schedule":"medium","physical":"unknown"},"unknowns":["A. 数量压力：材料里没有依据","B. 时间压力：材料里没有依据","C. 业绩压力：材料里没有依据","D. 情绪压力：材料里没有依据","F. 注意力压力：材料里没有依据","I. 身体压力：材料里没有依据"],"questions":[{"text":"这个岗位最近三个月的离职情况是怎样的？","priority":"medium","category":"org_position","targets":"D4"},{"text":"业务高峰期一般集中在什么时候？那时候的工作节奏是怎样的？","priority":"medium","category":"workload_kpi","targets":"D4"}],"evidenceIds":[]},{"id":"D5","kind":"opportunity","key":"nominal_vs_effective","name":"名义口径 vs 实际口径","goal":"指出同一个指标在两种口径下的强度差异 —— 这是最容易被话术掩盖的地方。","status":"partial","basis":"inferred","verdictLine":"材料里出现 1 处达标类指标，但没有一处说明考核的是名义口径还是实际口径。","findings":[{"text":"「每周大概会有 3 到 5 个」在不同口径下强度差别很大：名义口径是「每周大概会有 3 到 5 个」，实际口径是「真正达成结果的 3 个」，被掩盖的成本是「未被记录的前置成本」。","basis":"inferred","evidenceIds":["E4"]}],"extras":{"nominalVsEffective":[{"nominal":"每周大概会有 3 到 5 个","effective":"真正达成结果的 3 个","hiddenCost":"未被记录的前置成本","evidenceIds":["E4"]}],"pairs":[{"nominal":"每周大概会有 3 到 5 个","effective":"真正达成结果的 3 个","hiddenCost":"未被记录的前置成本","evidenceIds":["E4"]}]},"computation":null,"scores":{},"unknowns":["所有指标的考核口径都未说明"],"questions":[{"text":"这些指标考核的是完成数量还是达成结果？两者的统计方式有什么不同？","priority":"high","category":"workload_kpi","targets":"D5"}],"evidenceIds":["E4"]},{"id":"D6","kind":"opportunity","key":"work_type","name":"工作类型判定","goal":"按实际工作流程判断类型，不看岗位名称。","status":"partial","basis":"inferred","verdictLine":"从实际描述看，这个角色最接近：项目管理类、售后/运维类、审核/质检类。","findings":[{"text":"归入「项目管理类」：以规划、进度跟踪、协调资源为主（材料里有 2 处相关表述）。","basis":"inferred","evidenceIds":["E4","E19"]},{"text":"归入「售后/运维类」：处理售后问题、维护客户或系统稳定（材料里有 1 处相关表述）。","basis":"inferred","evidenceIds":["E12"]},{"text":"归入「审核/质检类」：以内容审核、质量检查为主（材料里有 1 处相关表述）。","basis":"inferred","evidenceIds":["E16"]}],"extras":{"typeTags":[{"key":"project_management","label":"项目管理类","reason":"以规划、进度跟踪、协调资源为主"},{"key":"after_sales","label":"售后/运维类","reason":"处理售后问题、维护客户或系统稳定"},{"key":"audit_qc","label":"审核/质检类","reason":"以内容审核、质量检查为主"}],"taxonomyScores":[{"key":"project_management","label":"项目管理类","reason":"以规划、进度跟踪、协调资源为主","hits":2},{"key":"after_sales","label":"售后/运维类","reason":"处理售后问题、维护客户或系统稳定","hits":1},{"key":"audit_qc","label":"审核/质检类","reason":"以内容审核、质量检查为主","hits":1},{"key":"engineering","label":"技术开发类","reason":"以编码开发、系统架构为主","hits":1}]},"computation":null,"scores":{},"unknowns":["工作类型是按描述推断的，岗位名称可能与实际不符"],"questions":[],"evidenceIds":[]},{"id":"D7","kind":"opportunity","key":"personal_fit","name":"个体适配","goal":"基于当事人的条件逐项分析适配度。不给单一总分。","status":"ok","basis":"inferred","verdictLine":"10 个适配维度中有 5 项可判，其中最低的是「② 沟通适配度」（1/5）。","findings":[{"text":"② 沟通适配度：1/5 —— 信息中性，按 3 分起步；与你在档案里写下的偏好 / 边界相冲突","basis":"inferred","evidenceIds":["E1"]},{"text":"③ 重复劳动适配度：3/5 —— 信息中性，按 3 分起步","basis":"inferred","evidenceIds":["E1"]},{"text":"⑦ 排班适配度：1/5 —— 信息中性，按 3 分起步；与你在档案里写下的偏好 / 边界相冲突","basis":"inferred","evidenceIds":["E1"]},{"text":"⑨ 短期过渡适配度：3/5 —— 信息中性，按 3 分起步","basis":"inferred","evidenceIds":["E1"]},{"text":"⑩ 长期发展价值：3/5 —— 信息中性，按 3 分起步","basis":"inferred","evidenceIds":["E1"]}],"extras":{"fitScores":[{"key":"skill","label":"① 技能适配度","score":null,"reason":"这次面试没有谈到这一点","touchedBoundary":false},{"key":"communication","label":"② 沟通适配度","score":1,"reason":"信息中性，按 3 分起步；与你在档案里写下的偏好 / 边界相冲突","touchedBoundary":true},{"key":"repetition","label":"③ 重复劳动适配度","score":3,"reason":"信息中性，按 3 分起步","touchedBoundary":false},{"key":"attention","label":"④ 注意力适配度","score":null,"reason":"这次面试没有谈到这一点","touchedBoundary":false},{"key":"emotion_pressure","label":"⑤ 情绪压力适配度","score":null,"reason":"这次面试没有谈到这一点","touchedBoundary":false},{"key":"kpi","label":"⑥ KPI 适配度","score":null,"reason":"这次面试没有谈到这一点","touchedBoundary":false},{"key":"schedule","label":"⑦ 排班适配度","score":1,"reason":"信息中性，按 3 分起步；与你在档案里写下的偏好 / 边界相冲突","touchedBoundary":true},{"key":"physical","label":"⑧ 身体劳动适配度","score":null,"reason":"这次面试没有谈到这一点","touchedBoundary":false},{"key":"short_term_transition","label":"⑨ 短期过渡适配度","score":3,"reason":"信息中性，按 3 分起步","touchedBoundary":false},{"key":"long_term_value","label":"⑩ 长期发展价值","score":3,"reason":"信息中性，按 3 分起步","touchedBoundary":false}]},"computation":null,"scores":{"skill":null,"communication":1,"repetition":3,"attention":null,"emotion_pressure":null,"kpi":null,"schedule":1,"physical":null,"short_term_transition":3,"long_term_value":3},"unknowns":["① 技能适配度：这次面试没有谈到","④ 注意力适配度：这次面试没有谈到","⑤ 情绪压力适配度：这次面试没有谈到","⑥ KPI 适配度：这次面试没有谈到","⑧ 身体劳动适配度：这次面试没有谈到"],"questions":[{"text":"这个岗位在这方面的实际投入，和你现在能接受的范围差多少？","priority":"high","category":"self_improve","targets":"D7"}],"evidenceIds":[]},{"id":"D8","kind":"opportunity","key":"sustainability","name":"持续性推演：能不能撑住","goal":"分三个时间尺度判断，区分「理论上能完成」与「可以连续完成不崩溃」。","status":"partial","basis":"inferred","verdictLine":"按三个时间尺度看：第一天与第一周的障碍主要来自「信息不足」，第一个月的关键变量是这些压力是否持续叠加。","findings":[{"text":"新鲜感消退后，最先出现问题的是：任务量是否与描述一致。","basis":"inferred","evidenceIds":["E1","E2"]},{"text":"以上是机制层面的推演，不是对结果的预测。","basis":"inferred","evidenceIds":["E1"]}],"extras":{"sustainability":{"day1":["第一天会经历完整的上手流程，是否能完成当天任务取决于带教安排。"],"week1":["新鲜感消退后，最先出现问题的是：任务量是否与描述一致。"],"month1":["决定能否长期留下的因素通常不是技能，而是上面那几类压力是否持续叠加。"]},"axes":[{"key":"energy","label":"体力/精力","theoretical":"某一天咬牙能撑住","sustained":"连续 22 天都能保持基本状态"},{"key":"emotion","label":"情绪","theoretical":"偶尔面对负面情绪能处理","sustained":"每天面对负面情绪不会持续积压"},{"key":"psych","label":"心理压力","theoretical":"知道目标后觉得应该能完成","sustained":"不需要每天靠意志力硬扛"},{"key":"body","label":"身体反应","theoretical":"没有明显身体不适","sustained":"不会出现失眠、头痛、持续性疲劳"},{"key":"satisfaction","label":"工作满意度","theoretical":"不讨厌这份工作","sustained":"对工作内容不产生强烈抵触"}]},"computation":null,"scores":{"day1":5,"week1":4,"month1":3},"unknowns":["没有对方关于团队人员流动与上手周期的具体说明"],"questions":[{"text":"上手期一般多久？期间有没有明确的产出要求？","priority":"medium","category":"org_position","targets":"D8"}],"evidenceIds":["E1","E2"]},{"id":"D9","kind":"opportunity","key":"risk_signals","name":"话术风险扫描","goal":"识别文本中的风险信号，不武断判定为骗人，而是给出多种可能解释与验证方式。","status":"ok","basis":"stated","verdictLine":"命中 5 类风险信号。命中的是**表述方式**，不等于对方在说谎 —— 每条都给出了正面理解与验证方法。","findings":[{"text":"「模糊限定词」：「每周大概会有 3 到 5 个需求进来，主要看客户的排期。」—— 正面理解：对方在描述一个波动区间，而不是承诺一个固定值；反面理解：模糊词后面往往藏着比字面更高的实际要求","basis":"stated","evidenceIds":["E4"]},{"text":"「归因个人型」：「薪资的话是 20 到 30K，上不封顶，主要看个人能力。」—— 正面理解：确实存在不同的成长速度；反面理解：把「没有配套支持」说成了「给你发挥空间」","basis":"stated","evidenceIds":["E6"]},{"text":"「宽幅薪资型」：「薪资的话是 20 到 30K，上不封顶，主要看个人能力。」—— 正面理解：确实存在靠业绩上浮的空间；反面理解：区间下端是保底、上端是理想值，两者对应的工作强度完全不同","basis":"stated","evidenceIds":["E6"]},{"text":"「回避具体型」：「这个看情况，正常都能完成，主要看个人效率。」—— 正面理解：确实受很多变量影响，难以提前给出；反面理解：具体的、可验证的信息被绕开了","basis":"stated","evidenceIds":["E20"]},{"text":"「只谈成长型」：「我们团队氛围挺好的，大家都比较拼，成长也快。」—— 正面理解：岗位确实能带来经验积累；反面理解：用「成长」替代了实际工作内容与回报的说明","basis":"stated","evidenceIds":["E7"]}],"extras":{"riskSignals":[{"key":"hedge_words","label":"模糊限定词","quote":"每周大概会有 3 到 5 个需求进来，主要看客户的排期。","positive":"对方在描述一个波动区间，而不是承诺一个固定值","negative":"模糊词后面往往藏着比字面更高的实际要求","verify":"追问：这个「平均」是怎么算出来的？最好的一天和最差的一天分别是多少？","evidenceIds":["E4"]},{"key":"personal_ability","label":"归因个人型","quote":"薪资的话是 20 到 30K，上不封顶，主要看个人能力。","positive":"确实存在不同的成长速度","negative":"把「没有配套支持」说成了「给你发挥空间」","verify":"追问：带我的人是谁、他有多少时间带我？有没有书面的上手流程？","evidenceIds":["E6"]},{"key":"salary_range","label":"宽幅薪资型","quote":"薪资的话是 20 到 30K，上不封顶，主要看个人能力。","positive":"确实存在靠业绩上浮的空间","negative":"区间下端是保底、上端是理想值，两者对应的工作强度完全不同","verify":"追问：这个区间的下限和上限分别对应什么条件？书面写进合同的是哪一部分？","evidenceIds":["E6"]},{"key":"evasion","label":"回避具体型","quote":"这个看情况，正常都能完成，主要看个人效率。","positive":"确实受很多变量影响，难以提前给出","negative":"具体的、可验证的信息被绕开了","verify":"换一种问法再问一次同一个点，看回答是否仍然没有信息量。","evidenceIds":["E20"]},{"key":"growth_over_content","label":"只谈成长型","quote":"我们团队氛围挺好的，大家都比较拼，成长也快。","positive":"岗位确实能带来经验积累","negative":"用「成长」替代了实际工作内容与回报的说明","verify":"追问：这份工作每天具体在做什么？三个月后我会比现在多会什么？","evidenceIds":["E7"]}]},"computation":null,"scores":{},"unknowns":[],"questions":[{"text":"这个「平均」是怎么算出来的？最好的一天和最差的一天分别是多少？","priority":"high","category":"org_position","targets":"D9"},{"text":"带我的人是谁、他有多少时间带我？有没有书面的上手流程？","priority":"high","category":"org_position","targets":"D9"},{"text":"这个区间的下限和上限分别对应什么条件？书面写进合同的是哪一部分？","priority":"high","category":"org_position","targets":"D9"}],"evidenceIds":["E4","E6","E20","E7"]},{"id":"D10","kind":"opportunity","key":"real_compensation","name":"实际回报测算","goal":"按可确定的信息计算单位时间回报，而不是只看月薪数字。","status":"partial","basis":"stated","verdictLine":"按材料中的薪酬与工时估算，单位时间回报约 69–152 元/小时。","findings":[{"text":"材料中出现的薪酬信息：「20 到 30K」。","basis":"stated","evidenceIds":["E6"]},{"text":"休息安排：「双休」，据此估算月工作 22 天、每日净工作 10 小时。","basis":"stated","evidenceIds":["E5"]}],"extras":{"compensationRows":[{"label":"A 理想","income":30000,"workDays":22,"dailyHours":9,"hourly":152},{"label":"B 正常","income":25000,"workDays":22,"dailyHours":10,"hourly":114},{"label":"C 最差","income":20000,"workDays":24,"dailyHours":12,"hourly":69}],"compensationInputs":[{"key":"salary","item":"月薪","point":"底薪、绩效范围、综合到手"},{"key":"work_days","item":"工作天数","point":"月休天数"},{"key":"daily_hours","item":"每天工作时长","point":"班次时长、是否含午休"},{"key":"break_included","item":"是否包含休息时间","point":"午休时长、自由支配时间"},{"key":"overtime","item":"加班","point":"是否需要加班、加班费计算方式"},{"key":"holiday_pay","item":"节假日补贴","point":"节假日工资计算方式"},{"key":"social_insurance","item":"社保扣除","point":"五险一金个人承担部分"}]},"computation":{"formula":"单位时间回报 = 实发月收入 ÷ (月工作天数 × 每日净工作时长)","inputs":{"monthly_income":25000,"work_days_per_month":22,"daily_hours":10},"result":{"hourly_min":69,"hourly_max":152},"verdict":"按材料里的数字测算，单位时间回报约 69–152 元/小时（月收入 20000–30000 元 ÷ 月工时 220 小时上下）。三个情景的区别来自休息天数与加班是否另计。"},"scores":{},"unknowns":["薪资区间的构成（基本工资 / 绩效比例）未说明","加班是否另计、社保个人承担部分未说明"],"questions":[{"text":"薪资区间的构成是什么？写入合同的基本工资是多少？","priority":"high","category":"pay_benefit","targets":"D10"},{"text":"是否需要加班？加班费怎么算？法定节假日怎么计算工资？","priority":"high","category":"pay_benefit","targets":"D10"}],"evidenceIds":["E6","E5"]},{"id":"D11","kind":"opportunity","key":"questions","name":"还需要问清的问题","goal":"产出具体到可以直接复制发送的问题，用于补齐缺口和验证疑点。","status":"ok","basis":"inferred","verdictLine":"共 15 个问题，按「工作量与 KPI / 薪酬与福利 / 时间与排班 / 环境与内容 / 组织与岗位」分组。","findings":[],"extras":{"questionCount":15},"computation":null,"scores":{},"unknowns":[],"questions":[{"text":"一个典型工作日的上午和下午分别是怎么安排的？","priority":"high","category":"environment_content","targets":"D1"},{"text":"每日任务量是硬性指标还是参考数量？完不成会有什么后果？","priority":"high","category":"workload_kpi","targets":"D2"},{"text":"试用期的考核标准是什么？转正的判定由谁做？","priority":"medium","category":"org_position","targets":"D2"},{"text":"「每周大概会有 3 到 5 个」是名义上完成 3 个，还是有效达成 3 个？两者区别是什么？","priority":"high","category":"workload_kpi","targets":"D3"},{"text":"平均每项任务的处理时长是多少？有没有时限要求？","priority":"high","category":"workload_kpi","targets":"D3"},{"text":"这个岗位最近三个月的离职情况是怎样的？","priority":"medium","category":"org_position","targets":"D4"},{"text":"业务高峰期一般集中在什么时候？那时候的工作节奏是怎样的？","priority":"medium","category":"workload_kpi","targets":"D4"},{"text":"这些指标考核的是完成数量还是达成结果？两者的统计方式有什么不同？","priority":"high","category":"workload_kpi","targets":"D5"},{"text":"这个岗位在这方面的实际投入，和你现在能接受的范围差多少？","priority":"high","category":"self_improve","targets":"D7"},{"text":"上手期一般多久？期间有没有明确的产出要求？","priority":"medium","category":"org_position","targets":"D8"},{"text":"这个「平均」是怎么算出来的？最好的一天和最差的一天分别是多少？","priority":"high","category":"org_position","targets":"D9"},{"text":"带我的人是谁、他有多少时间带我？有没有书面的上手流程？","priority":"high","category":"org_position","targets":"D9"},{"text":"这个区间的下限和上限分别对应什么条件？书面写进合同的是哪一部分？","priority":"high","category":"org_position","targets":"D9"},{"text":"薪资区间的构成是什么？写入合同的基本工资是多少？","priority":"high","category":"pay_benefit","targets":"D10"},{"text":"是否需要加班？加班费怎么算？法定节假日怎么计算工资？","priority":"high","category":"pay_benefit","targets":"D10"}],"evidenceIds":[]},{"id":"D12","kind":"opportunity","key":"decision","name":"情景推演与决策表","goal":"不给「去 / 不去」的简单结论，而是给出三种情景推演与三档条件决策表。","status":"ok","basis":"inferred","verdictLine":"按现有材料归入「需要谨慎」。","findings":[],"extras":{"conditions":{"consider":["工作量测算在 8 小时内可行","没有出现「高」等级的压力类型","薪酬与工时信息给出了区间与算式，可以自己复算"],"caution":["命中 5 类风险话术，需要按报告里的问题逐条确认","数量指标的口径未说明（名义 vs 实际）"],"mismatch":[]},"tier":"caution","scenarios":[{"key":"A","label":"对方描述基本可信","points":[{"field":"成立条件","text":"对方关于工作量与待遇的说法都属实，指标口径与实际执行一致"},{"field":"实际会是什么样","text":"按目前的数量与节奏，这是可以长期维持的工作强度"},{"field":"适合什么人","text":"适合能接受这类节奏、且不依赖频繁变化的人"}]},{"key":"B","label":"描述存在明显水分","points":[{"field":"会出现什么","text":"已命中 5 类风险话术，实际要求大概率高于字面描述"},{"field":"最坏情况","text":"最坏情况是任务量与收入都偏离预期，且「成长」这类说法无法兑现"},{"field":"如何应对","text":"最有效的应对是在入职前把指标口径、加班计算、试用期考核落到书面"}]},{"key":"C","label":"我有特定的优先需求","points":[{"field":"最该重点观察的指标","text":"最需要盯的两个数字：单位时间回报，以及月工作天数"},{"field":"判断是否止损的信号","text":"如果连续两次追问都得不到具体回答，说明信息不透明本身就是信号"}]}],"decisionTable":[{"key":"consider","label":"可以考虑","conditions":["工作量测算在 8 小时内可行","没有出现「高」等级的压力类型","薪酬与工时信息给出了区间与算式，可以自己复算"]},{"key":"caution","label":"需要谨慎","conditions":["命中 5 类风险话术，需要按报告里的问题逐条确认","数量指标的口径未说明（名义 vs 实际）"]},{"key":"mismatch","label":"明显不匹配","conditions":[]}],"highStressCount":0,"riskCount":5},"computation":null,"scores":{},"unknowns":[],"questions":[],"evidenceIds":[]},{"id":"P1","kind":"performance","key":"structure","name":"回答结构","goal":"看回答有没有「先给结论、再给依据」的骨架，还是想到哪说到哪。","status":"ok","basis":"inferred","verdictLine":"7 段回答里有 0 段出现了显式结构标记（首先 / 其次 / 结论是……），占比 0%。","findings":[{"text":"有结构标记的回答占 0%；结构清晰指的是「先给结论，再说依据」，而不是说得长。","basis":"inferred","evidenceIds":["E10","E11","E12"]}],"extras":{"structuredCount":0,"totalCount":7,"samples":[]},"computation":null,"scores":{"structure":1},"unknowns":[],"questions":[],"evidenceIds":["E10","E11","E12"]},{"id":"P2","kind":"performance","key":"specificity","name":"事实密度","goal":"回答里有多少是别人可以核对的（数字、时间、动作、交付物），多少只是形容词。","status":"ok","basis":"inferred","verdictLine":"7 段回答里，2 段含可核对的事实（数字 / 时间 / 动作 / 交付物），1 段只有评价性表述。","findings":[{"text":"事实密度 29%。事实是指别人能拿去核对的东西，而不是听起来有把握的表述。","basis":"inferred","evidenceIds":["E10","E19"]},{"text":"有 1 段回答只给出评价性表述（例如「挺熟悉的」），没有跟上具体做过什么。","basis":"inferred","evidenceIds":["E12"]}],"extras":{"factCount":2,"vagueCount":1,"totalCount":7,"ratio":0.29},"computation":null,"scores":{"specificity":1},"unknowns":["有回答缺少可核对的事实"],"questions":[],"evidenceIds":["E10","E19","E12"]},{"id":"P3","kind":"performance","key":"job_alignment","name":"岗位对齐度","goal":"有没有把经历和这个岗位要的东西对上，而不是讲了一个无关的完整故事。","status":"ok","basis":"inferred","verdictLine":"岗位涉及 21 个能力关键词，回答里明确回应了 2 个。","findings":[{"text":"岗位要求里出现、但回答中没有回应的关键词：Agent 开发、Function Calling / 工具调用、工作流编排、模型量化/本地部署、学历：本科及以上、大语言模型应用。没提到不等于不会，只说明这次没说。","basis":"inferred","evidenceIds":["E10","E11","E12"]}],"extras":{"jobKeywords":["Agent 开发","Function Calling / 工具调用","工作流编排","RAG 检索增强","模型量化/本地部署","学历：本科及以上","Python","大语言模型应用","Prompt Engineering","向量数据库","Dify","Coze / 扣子","n8n","沟通表达","学习能力","责任心 / 抗压","多 Agent 协作","LangChain","技术写作 / 文档","Token 成本控制","模型评测"],"hitKeywords":["RAG 检索增强","Python"],"missingKeywords":["Agent 开发","Function Calling / 工具调用","工作流编排","模型量化/本地部署","学历：本科及以上","大语言模型应用","Prompt Engineering","向量数据库","Dify","Coze / 扣子","n8n","沟通表达","学习能力","责任心 / 抗压","多 Agent 协作","LangChain","技术写作 / 文档","Token 成本控制","模型评测"]},"computation":null,"scores":{"job_alignment":1},"unknowns":[],"questions":[],"evidenceIds":["E10","E11","E12"]},{"id":"P4","kind":"performance","key":"depth","name":"深度与取舍","goal":"能不能讲清「为什么这么做」和「当时还考虑过什么别的做法」。","status":"ok","basis":"inferred","verdictLine":"7 段回答里，1 段讲到了「为什么这么做」或「还考虑过别的做法」。","findings":[{"text":"讲清取舍的回答占 14%。深度体现在「为什么选这个方案」和「放弃了什么」，不在于用了多少工具。","basis":"inferred","evidenceIds":["E14"]}],"extras":{"depthCount":1,"totalCount":7},"computation":null,"scores":{"depth":1},"unknowns":[],"questions":[],"evidenceIds":["E14"]},{"id":"P5","kind":"performance","key":"boundary","name":"认知边界","goal":"对不会的部分是怎么处理的 —— 承认边界是加分项，硬撑是减分项。","status":"ok","basis":"inferred","verdictLine":"1 段回答里明确划出了认知边界，0 段用了含糊表述绕开。","findings":[{"text":"对不会的部分说「这块我没深入过」是加分项 —— 面试官据此判断的是可信度，不是能力上限。","basis":"inferred","evidenceIds":["E14"]}],"extras":{"boundaryCount":1,"evasionCount":0},"computation":null,"scores":{"boundary":4},"unknowns":[],"questions":[],"evidenceIds":["E14"]},{"id":"P6","kind":"performance","key":"interaction","name":"交互与主动信息获取","goal":"有没有答到点上、有没有展开过度，以及有没有主动问清关键信息。","status":"ok","basis":"inferred","verdictLine":"我方发言 7 段，其中主动提问 2 段。","findings":[{"text":"主动提问的内容包括：想问一下，每周 3 到 5 个需求是排期数量还是必须交付的数量？；好的，那我想了解一下团队现在有多少人，我进来是负责哪一块？。","basis":"inferred","evidenceIds":["E19","E21"]}],"extras":{"askCount":2,"answerCount":7},"computation":null,"scores":{"interaction":4},"unknowns":[],"questions":[],"evidenceIds":["E19","E21"]}],"performance":{"overall":"fair","strengths":["认知边界：1 段回答里明确划出了认知边界，0 段用了含糊表述绕开。","交互与主动信息获取：我方发言 7 段，其中主动提问 2 段。"],"weaknesses":["回答结构：7 段回答里有 0 段出现了显式结构标记（首先 / 其次 / 结论是……），占比 0%。","事实密度：7 段回答里，2 段含可核对的事实（数字 / 时间 / 动作 / 交付物），1 段只有评价性表述。","岗位对齐度：岗位涉及 21 个能力关键词，回答里明确回应了 2 个。","深度与取舍：7 段回答里，1 段讲到了「为什么这么做」或「还考虑过别的做法」。"],"improvable":[{"point":"回答结构","howTo":"下次回答先给一句话结论，再补两条依据；实在想不起结构就先用「分三点说」。","evidenceIds":["E10","E11"]},{"point":"事实密度","howTo":"把「挺熟悉的」换成「在 X 项目里用它做过 Y，结果是 Z」——补上数字、时间或交付物。","evidenceIds":["E10","E19"]},{"point":"岗位对齐度","howTo":"面试前把岗位要求里的关键词抄出来，每个词准备一句「我用它做过什么」。","evidenceIds":["E10","E11"]},{"point":"深度与取舍","howTo":"每讲一个做法，补一句「当时还考虑过另一个方案，没选它是因为……」。","evidenceIds":["E14"]}],"answerTurns":7,"factBackedTurns":2,"vagueTurns":1},"fit":{"status":"ok","basedOn":"interview_only","overallVerdict":null,"summary":"这次没有对应的匹配报告，适配度只依据面试里谈到的事实。 可判的 5 项里，最弱的是「② 沟通适配度」（1/5）。注意：有 2 项触碰了你写下的偏好边界。","items":[{"key":"communication","label":"② 沟通适配度","score":1,"reason":"信息中性，按 3 分起步；与你在档案里写下的偏好 / 边界相冲突","touchedBoundary":true},{"key":"repetition","label":"③ 重复劳动适配度","score":3,"reason":"信息中性，按 3 分起步","touchedBoundary":false},{"key":"schedule","label":"⑦ 排班适配度","score":1,"reason":"信息中性，按 3 分起步；与你在档案里写下的偏好 / 边界相冲突","touchedBoundary":true},{"key":"short_term_transition","label":"⑨ 短期过渡适配度","score":3,"reason":"信息中性，按 3 分起步","touchedBoundary":false},{"key":"long_term_value","label":"⑩ 长期发展价值","score":3,"reason":"信息中性，按 3 分起步","touchedBoundary":false}],"boundaryHits":["② 沟通适配度","⑦ 排班适配度"]},"charts":{"pressure":[{"axis":"A. 数量压力","value":null},{"axis":"B. 时间压力","value":null},{"axis":"C. 业绩压力","value":null},{"axis":"D. 情绪压力","value":null},{"axis":"E. 监控压力","value":3},{"axis":"F. 注意力压力","value":null},{"axis":"G. 沟通压力","value":3},{"axis":"H. 排班压力","value":3},{"axis":"I. 身体压力","value":null}],"fit":[{"axis":"① 技能适配度","value":null},{"axis":"② 沟通适配度","value":1},{"axis":"③ 重复劳动适配度","value":3},{"axis":"④ 注意力适配度","value":null},{"axis":"⑤ 情绪压力适配度","value":null},{"axis":"⑥ KPI 适配度","value":null},{"axis":"⑦ 排班适配度","value":1},{"axis":"⑧ 身体劳动适配度","value":null},{"axis":"⑨ 短期过渡适配度","value":3},{"axis":"⑩ 长期发展价值","value":3}],"performance":[{"axis":"回答结构","value":1},{"axis":"事实密度","value":1},{"axis":"岗位对齐度","value":1},{"axis":"深度与取舍","value":1},{"axis":"认知边界","value":4},{"axis":"交互与主动信息获取","value":4}],"workloadTime":{"formula":"纯处理时间 = 每日指标数量 × 单项平均处理时长","rows":[{"perItemSeconds":30,"pureMinutes":2,"remainingMinutes":478,"feasibility":"轻松完成"},{"perItemSeconds":60,"pureMinutes":3,"remainingMinutes":477,"feasibility":"可以完成"},{"perItemSeconds":120,"pureMinutes":6,"remainingMinutes":474,"feasibility":"紧张但可行"},{"perItemSeconds":180,"pureMinutes":9,"remainingMinutes":471,"feasibility":"不可能完成"}],"verdict":"按每天 3 个、单件 2 分钟估，纯处理需要约 6 分钟（3 × 2 分钟），8 小时工作日剩余约 474 分钟。这个测算还没算上查看任务、系统切换、等待与记录的时间成本。"},"compensation":{"formula":"单位时间回报 = 实发月收入 ÷ (月工作天数 × 每日净工作时长)","rows":[{"label":"A 理想","income":30000,"workDays":22,"dailyHours":9,"hourly":152},{"label":"B 正常","income":25000,"workDays":22,"dailyHours":10,"hourly":114},{"label":"C 最差","income":20000,"workDays":24,"dailyHours":12,"hourly":69}],"verdict":"按材料里的数字测算，单位时间回报约 69–152 元/小时（月收入 20000–30000 元 ÷ 月工时 220 小时上下）。三个情景的区别来自休息天数与加班是否另计。"}},"synthesis":{"oneLine":"这次面试存在需要先验证的疑点，确认之后再做决定。","tier":"caution","verdictParagraph":"这次面试里有几处需要先确认再决定的地方。机会侧有 12 个维度拿到了可用证据，命中 5 类风险话术。报告只使用录音里出现过的话，没有用行业惯例补全任何缺失的部分。","highlights":[{"text":"出现 5 类风险话术（模糊限定词、归因个人型、宽幅薪资型），报告里给出了验证方法","evidenceIds":["E4","E6","E20","E7"]},{"text":"薪酬与工时已按材料中的数字算出单位时间回报区间，可以自己复算","evidenceIds":["E6","E5"]},{"text":"对方给出的数量指标换算后，纯处理时间约 6 分钟／天，可行性判断：轻松完成。","evidenceIds":["E4"]}],"scenarios":[{"key":"A","label":"对方描述基本可信","points":[{"field":"成立条件","text":"对方关于工作量与待遇的说法都属实，指标口径与实际执行一致"},{"field":"实际会是什么样","text":"按目前的数量与节奏，这是可以长期维持的工作强度"},{"field":"适合什么人","text":"适合能接受这类节奏、且不依赖频繁变化的人"}]},{"key":"B","label":"描述存在明显水分","points":[{"field":"会出现什么","text":"已命中 5 类风险话术，实际要求大概率高于字面描述"},{"field":"最坏情况","text":"最坏情况是任务量与收入都偏离预期，且「成长」这类说法无法兑现"},{"field":"如何应对","text":"最有效的应对是在入职前把指标口径、加班计算、试用期考核落到书面"}]},{"key":"C","label":"我有特定的优先需求","points":[{"field":"最该重点观察的指标","text":"最需要盯的两个数字：单位时间回报，以及月工作天数"},{"field":"判断是否止损的信号","text":"如果连续两次追问都得不到具体回答，说明信息不透明本身就是信号"}]}],"decisionTable":[{"key":"consider","label":"可以考虑","conditions":["工作量测算在 8 小时内可行","没有出现「高」等级的压力类型","薪酬与工时信息给出了区间与算式，可以自己复算"]},{"key":"caution","label":"需要谨慎","conditions":["命中 5 类风险话术，需要按报告里的问题逐条确认","数量指标的口径未说明（名义 vs 实际）"]},{"key":"mismatch","label":"明显不匹配","conditions":[]}],"nextAction":"今天把这条消息发给对方：一个典型工作日的上午和下午分别是怎么安排的？","boundaryStatement":"本报告不替你做决定，只把做决定所需的信息整理清楚。它描述的是「录音里能听到的内容」，面试官的实际评价不在其中。"},"questions":[{"text":"一个典型工作日的上午和下午分别是怎么安排的？","priority":"high","category":"environment_content","targets":"D1"},{"text":"每日任务量是硬性指标还是参考数量？完不成会有什么后果？","priority":"high","category":"workload_kpi","targets":"D2"},{"text":"试用期的考核标准是什么？转正的判定由谁做？","priority":"medium","category":"org_position","targets":"D2"},{"text":"「每周大概会有 3 到 5 个」是名义上完成 3 个，还是有效达成 3 个？两者区别是什么？","priority":"high","category":"workload_kpi","targets":"D3"},{"text":"平均每项任务的处理时长是多少？有没有时限要求？","priority":"high","category":"workload_kpi","targets":"D3"},{"text":"这个岗位最近三个月的离职情况是怎样的？","priority":"medium","category":"org_position","targets":"D4"},{"text":"业务高峰期一般集中在什么时候？那时候的工作节奏是怎样的？","priority":"medium","category":"workload_kpi","targets":"D4"},{"text":"这些指标考核的是完成数量还是达成结果？两者的统计方式有什么不同？","priority":"high","category":"workload_kpi","targets":"D5"},{"text":"这个岗位在这方面的实际投入，和你现在能接受的范围差多少？","priority":"high","category":"self_improve","targets":"D7"},{"text":"上手期一般多久？期间有没有明确的产出要求？","priority":"medium","category":"org_position","targets":"D8"},{"text":"这个「平均」是怎么算出来的？最好的一天和最差的一天分别是多少？","priority":"high","category":"org_position","targets":"D9"},{"text":"带我的人是谁、他有多少时间带我？有没有书面的上手流程？","priority":"high","category":"org_position","targets":"D9"},{"text":"这个区间的下限和上限分别对应什么条件？书面写进合同的是哪一部分？","priority":"high","category":"org_position","targets":"D9"},{"text":"薪资区间的构成是什么？写入合同的基本工资是多少？","priority":"high","category":"pay_benefit","targets":"D10"},{"text":"是否需要加班？加班费怎么算？法定节假日怎么计算工资？","priority":"high","category":"pay_benefit","targets":"D10"}],"disclaimer":"本报告由录音转写推导而来，只反映「录音里能听到的内容」。转写可能出错，说话人也可能被识别错，重要结论请回看原始录音确认。报告不评价面试官，也不预测面试结果。"}</script>
+</body>
+</html>

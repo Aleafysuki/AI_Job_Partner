@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+
+        <!--
+          allowBackup 原是 true（Capacitor 模板默认），这里改成 false。
+          理由与产品承诺直接相关：应用内是用户的完整能力档案、简历原文衍生出的
+          证据库、以及面试录音。allowBackup=true 意味着这些会被 Android 自动备份
+          到用户的 Google 账号云端 —— 那正好推翻「数据只保存在本机、不上传简历」
+          这句写在界面上、也写进产品文档第十一节的话。
+          代价：换机时数据不会自动迁移。这属于用户显式要求的行为，
+          想改回来就把它设回 true，并在 docs/ANDROID.md 里同步说明。
+        -->
+
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
+            android:name=".MainActivity"
+            android:label="@string/title_activity_main"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:launchMode="singleTask"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+        </activity>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths"></meta-data>
+        </provider>
+
+        <!--
+          静默模式的前台服务。
+
+          exported=false：它只由本应用通过显式 Intent 启动，不开放给外部。
+          foregroundServiceType 必须与 ServiceCompat.startForeground() 传入的类型一致，
+          否则 Android 14+ 会抛 SecurityException（而且是启动瞬间抛，界面直接崩）。
+          两种类型各有用途，对应 AijobQuietService.startAsForeground() 里的分支：
+            microphone —— 有录音权限时用，这个类型才能在锁屏/后台持续拿到音频输入；
+            dataSync   —— 还没拿到麦克风权限时用，只为保住进程与 WebView 不被回收。
+        -->
+        <service
+            android:name=".AijobQuietService"
+            android:exported="false"
+            android:foregroundServiceType="microphone|dataSync" />
+    </application>
+
+    <!-- Permissions -->
+
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+      面试录制。必须在系统弹窗里由用户同意 —— 应用无法自行授予。
+    -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!--
+      前台服务三件套。
+      FOREGROUND_SERVICE 是基础权限；后两条是 Android 14（API 34）起要求的
+      「按类型申请」的权限，用的是对应类型名的大写下划线形式。
+      少一条的后果不是降级运行，而是 startForeground 直接抛异常。
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
+    <!--
+      Android 13+ 弹前台服务通知需要用户同意这条权限（TIRAMISU）。
+      没同意的话服务仍能起来，但通知不可见 —— 那样静默模式就变成
+      「在录音、但没有任何地方能停掉」，正是产品明确不允许的形态。
+      所以界面在开启静默模式前应当先确认这条权限；见 docs/ANDROID.md。
+    -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!--
+      麦克风不是必需硬件：没有麦克风的设备（少数平板）也应该能装这个应用，
+      只是面试录音不可用。写成 required=true 会把这类设备直接从应用商店排除。
+    -->
+    <uses-feature
+        android:name="android.hardware.microphone"
+        android:required="false" />
+</manifest>

@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local/multi-dimension-fit-report/schemas/input.schema.json",
+  "title": "多维度适配度分析 · 输入契约",
+  "description": "调用本框架所需的全部输入。材料一为转写文本，材料二为当事人情况档案。",
+  "type": "object",
+  "required": ["transcript", "profile"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0.0", "default": "1.0.0" },
+    "domain": {
+      "type": "string",
+      "default": "job-position",
+      "description": "域标识，对应 references/domains/<id>.json"
+    },
+    "locale": { "type": "string", "default": "zh-CN" },
+    "transcript": {
+      "type": "object",
+      "description": "材料一：对方介绍机会的转写文本",
+      "required": ["text"],
+      "additionalProperties": false,
+      "properties": {
+        "text": { "type": "string", "minLength": 1, "description": "转写全文（明文）" },
+        "file_ref": { "type": "string", "description": "若由文件解析而来，记录来源路径或引用（可为空）" },
+        "format": { "type": "string", "enum": ["plain", "txt", "docx", "pdf", "markdown"] },
+        "source": {
+          "type": "string",
+          "enum": ["group_interview", "video_interview", "phone_interview", "briefing", "other"],
+          "description": "文本来源场景"
+        },
+        "speakers": { "type": "array", "items": { "type": "string" }, "description": "出现的发言人标签列表" },
+        "completeness": {
+          "type": "string",
+          "enum": ["full", "partial", "fragment"],
+          "default": "full",
+          "description": "全文 / 有缺段 / 仅片段"
+        }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "description": "材料二：当事人情况档案",
+      "required": ["purpose", "core_needs", "preferences", "boundaries", "time_horizon"],
+      "additionalProperties": false,
+      "properties": {
+        "purpose": { "type": "string", "minLength": 1, "description": "求职目的：短期过渡 / 长期发展 / 临时周转" },
+        "core_needs": { "type": "string", "minLength": 1, "description": "核心需求：最看重什么" },
+        "preferences": { "type": "string", "minLength": 1, "description": "工作偏好：喜欢或不喜欢的形态" },
+        "boundaries": { "type": "string", "minLength": 1, "description": "心理边界：无法长期承受的事" },
+        "time_horizon": { "type": "string", "minLength": 1, "description": "时间预期：打算做多久" },
+        "background": { "type": "string", "description": "其他背景（可选）：经历、技能、教育背景" },
+        "hard_constraints": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "不可协商的硬约束，如学历状态、可接受城市、不能从事的工作类型"
+        }
+      }
+    },
+    "options": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "anonymize": { "type": "boolean", "default": true, "description": "输出是否脱敏" },
+        "render": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["json", "html", "docx"] },
+          "default": ["json"],
+          "description": "需要产出的形态"
+        },
+        "dimensions": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^D([1-9]|1[0-2])$" },
+          "description": "只跑指定维度；缺省为全部 12 个"
+        },
+        "output_dir": { "type": "string", "description": "产物落盘目录；缺省为当前工作目录" }
+      }
+    }
+  }
+}

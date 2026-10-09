@@ -1,0 +1,22 @@
+# Android 宿主目录的 npm 配置。
+#
+# 为什么必须有这一行：
+#   本仓库是 npm workspaces（根 package.json 里声明了 workspaces: ["packages/*", "apps/*"]），
+#   默认会把依赖**提升**到仓库根的 node_modules。
+#   但 Capacitor 生成的 android/capacitor.settings.gradle 里写的是
+#       project(':capacitor-android').projectDir = new File('../../../node_modules/@capacitor/android/capacitor')
+#   —— 一个相对于本目录的路径。依赖被提升之后这个路径不存在，
+#   Gradle 会直接报 "project directory does not exist"，构建连配置阶段都过不去。
+#
+#   install-strategy=nested 让 npm 在本目录下装一份完整的 node_modules，
+#   于是上面那个相对路径成立，而且这个设置是写在文件里的、可复现的 ——
+#   比手工建目录联接（junction）稳，也比每次构建前临时改路径好。
+#
+# 注意：capacitor.settings.gradle 是 Capacitor 生成的文件，改它会在下一次
+# `cap sync` 时被覆盖，所以修的是依赖布局而不是那个文件。
+
+install-strategy=nested
+
+# 国内镜像（可选）。本机实测 registry.npmmirror.com 约 114KB/s，
+# 直连 registry.npmjs.org 约 42KB/s。
+# registry=https://registry.npmmirror.com

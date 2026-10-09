@@ -1,0 +1,76 @@
+{
+  "domain_id": "job-position",
+  "display_name": "求职岗位适配分析",
+  "schema_version": "1.0.0",
+  "is_default": true,
+  "status": "stable",
+
+  "terminology": {
+    "subject": { "generic": "当事人", "domain": "求职者" },
+    "counterparty": { "generic": "对方", "domain": "招聘方" },
+    "opportunity": { "generic": "该机会", "domain": "该岗位" },
+    "transcript": { "generic": "机会说明转写", "domain": "面试 / 宣讲 / 群面录音转写" },
+    "organization": { "generic": "该组织", "domain": "该公司" },
+    "compensation": { "generic": "回报", "domain": "薪资与福利" },
+    "workload_unit": { "generic": "任务", "domain": "电话 / 工单 / 方案 / 客户 / 产出件数" },
+    "schedule": { "generic": "时间安排", "domain": "排班与作息" },
+    "commitment": { "generic": "持续投入周期", "domain": "计划做多久（1 个月 / 3 个月 / 半年 / 长期）" }
+  },
+
+  "profile_fields": [
+    { "key": "purpose", "label": "求职目的", "hint": "为什么需要这份工作：短期过渡 / 长期发展 / 临时周转", "required": true },
+    { "key": "core_needs", "label": "核心需求", "hint": "最看重什么：稳定现金流 / 少依赖家里 / 工作生活平衡 / 技能成长", "required": true },
+    { "key": "preferences", "label": "工作偏好", "hint": "喜欢或不喜欢的形态：高强度社交 / 独立钻研 / 团队协作", "required": true },
+    { "key": "boundaries", "label": "心理边界", "hint": "无法长期承受的事：持续面对陌生人 / 被 KPI 追 / 频繁出差", "required": true },
+    { "key": "time_horizon", "label": "时间预期", "hint": "打算做多久：1 个月 / 3 个月 / 半年 / 长期", "required": true },
+    { "key": "background", "label": "其他背景", "hint": "过往经历、技能特长、教育背景（可选）", "required": false }
+  ],
+
+  "dimension_overrides": {
+    "D2": {
+      "notes": [
+        "学历类门槛（本科 / 统招 / 全日制 / 学信网 / 毕业证 / 大专）默认按硬门槛处理，除非文本明确写不限",
+        "JD 或口头提及的具体规范编号、具体工具名、具体工程概念一律按硬门槛处理，不解读为『可以学』",
+        "列表标签与正文冲突时以正文为准"
+      ]
+    },
+    "D3": {
+      "notes": ["单位任务耗时跨度很大：单次沟通可能 30 秒到 5 分钟，代码类可能是 2 到 8 小时，设计稿可能是半天到一天。取值必须来自文本或明确标注为假设"]
+    },
+    "D7": {
+      "notes": ["『不做电销、地推、强社交销售、高强度客服』这类偏好属于当事人的心理边界，命中时该维度不得给 4 分以上"]
+    },
+    "D10": {
+      "notes": ["计算现金流可用性时区分『长期职业池』与『现金流池』，不要用长期价值拉高短期可行性"]
+    }
+  },
+
+  "decision_hints": {
+    "consider": ["无硬门槛且资格成立", "时间与排班与当事人生活安排不冲突", "压力等级无 high 项且当事人边界未被触碰"],
+    "caution": ["存在一个关键未知（常见于毕业证是否硬性、指标实际口径）", "压力等级有 high 项但当事人需求以现金流为优先"],
+    "mismatch": ["存在明确硬门槛且不满足", "压力等级多项 high 且命中当事人心理边界", "工时测算显示在正常工作时长内物理不可行"]
+  },
+
+  "out_of_scope": [
+    "不做薪资谈判策略建议",
+    "不做简历修改与面试话术辅导",
+    "不替代对招聘方公司的经营与信用调查",
+    "不做面试通过率预测"
+  ],
+
+  "related_skills": [
+    { "name": "job-hunt-realism", "relation": "上游。用于在多个渠道中批量筛选岗位、判定投不投；本 Skill 用于对单个岗位做深度拆解" }
+  ],
+
+  "example_input": {
+    "transcript": "（面试或宣讲录音的转写全文）",
+    "profile": {
+      "purpose": "短期过渡，先有稳定收入",
+      "core_needs": "稳定现金流，少依赖家里",
+      "preferences": "不喜欢高强度社交，愿意独立完成手上的事",
+      "boundaries": "无法长期承受被 KPI 追着跑，不做电销",
+      "time_horizon": "3 个月",
+      "background": "信息对抗技术专业结业，约 8 个月内容编辑经历，有个人开发项目"
+    }
+  }
+}

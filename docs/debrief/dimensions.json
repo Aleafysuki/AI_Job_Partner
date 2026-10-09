@@ -1,0 +1,523 @@
+{
+  "schema_version": "1.0.0",
+  "framework_id": "multi-dimension-fit-report",
+  "title": "多维度适配度分析框架",
+  "default_domain": "job-position",
+  "intent": "从一段机会描述文本出发，还原真实工作形态、测算实际劳动强度、逐项比对当事人条件，最后给出情景推演与验证问题清单。不替当事人做决定。",
+  "principles": [
+    "只用文本中明确出现的信息，推不出的写 unknown",
+    "每条结论标注 basis：stated（对方明说）或 inferred（推断）",
+    "不做价值判断，既不鼓励也不劝阻",
+    "判定对象是『能否稳定持续做』而不是『能否完成一天』",
+    "禁止虚假精确：概率只用定性档位，金额与时长给区间并写出算式",
+    "数字类判断必须给出公式与中间值",
+    "区分名义口径与实际口径",
+    "信息缺口必须落到问题清单",
+    "允许 0 推荐",
+    "输出脱敏"
+  ],
+
+  "scales": {
+    "basis": {
+      "type": "enum",
+      "values": ["stated", "inferred", "mixed"],
+      "labels": { "stated": "对方明说", "inferred": "从描述推断", "mixed": "两者兼有" },
+      "null_meaning": "不适用"
+    },
+    "status": {
+      "type": "enum",
+      "values": ["ok", "partial", "insufficient_info"],
+      "labels": { "ok": "证据充分", "partial": "部分可判", "insufficient_info": "证据不足，仅列出缺口" }
+    },
+    "pressure_level": {
+      "type": "enum",
+      "values": ["low", "medium", "high", "unknown"],
+      "labels": { "low": "低", "medium": "中", "high": "高", "unknown": "信息不足" },
+      "null_meaning": "不得留空，证据不足必须填 unknown"
+    },
+    "fit_score": {
+      "type": "integer",
+      "min": 1,
+      "max": 5,
+      "null_meaning": "证据不足，禁止用行业均值或中位数填充",
+      "anchors": {
+        "1": "明确不匹配",
+        "2": "大概率吃力",
+        "3": "不确定，取决于未确认条件",
+        "4": "基本匹配",
+        "5": "明确匹配"
+      }
+    },
+    "intensity_score": {
+      "type": "integer",
+      "min": 1,
+      "max": 5,
+      "null_meaning": "证据不足",
+      "anchors": {
+        "1": "几乎无要求",
+        "2": "轻微",
+        "3": "中等",
+        "4": "偏高",
+        "5": "很高，属于该维度的核心压力源"
+      }
+    },
+    "priority": { "type": "enum", "values": ["high", "medium", "low"], "labels": { "high": "必问", "medium": "建议问", "low": "有余力再问" } },
+    "confidence": { "type": "enum", "values": ["low", "medium", "high"], "labels": { "low": "低", "medium": "中", "high": "高" } },
+    "qualitative_probability": {
+      "type": "enum",
+      "values": ["very_low", "low", "medium", "high", "very_high"],
+      "labels": { "very_low": "极低", "low": "较低", "medium": "中等", "high": "较高", "very_high": "很高" },
+      "note": "禁止输出百分比等虚假精确数字"
+    },
+    "biconditional": { "type": "enum", "values": ["是", "否", "未知"] }
+  },
+
+  "evidence": {
+    "types": ["claim", "fact", "number", "promise", "evasion"],
+    "type_labels": { "claim": "主张/宣传", "fact": "陈述事实", "number": "具体数字", "promise": "承诺（含条件性承诺）", "evasion": "回避/空话" },
+    "topics": ["workload", "pay", "schedule", "content", "environment", "requirement", "other"],
+    "topic_labels": { "workload": "工作量", "pay": "薪酬", "schedule": "时间与排班", "content": "工作内容", "environment": "环境与关系", "requirement": "要求与门槛", "other": "其他" },
+    "consistency": ["unique", "conflicting"],
+    "rules": [
+      "一句一 fact，quote 必须原样摘录，不改写不压缩",
+      "带数字的必须保留原始数字与单位",
+      "不同发言人对同一事实说法不一致的，各自单独成条并置 consistency=conflicting",
+      "空话与回避也要留条，type=evasion，它是 D9 的输入",
+      "本阶段禁止做任何推断"
+    ]
+  },
+
+  "dimensions": [
+    {
+      "id": "D1",
+      "key": "reality",
+      "name": "实态还原：这个角色到底在干什么",
+      "goal": "用外行能懂的话还原真实工作流程，而不是复述对方的岗位描述。",
+      "applies_when": "always",
+      "steps": [
+        "逐条列出对方描述的工作内容",
+        "还原一个普通员工一天可能经历的流程，用箭头串成链路",
+        "信息足够时，为每个环节估一个耗时区间",
+        "标注哪些来自原文、哪些是推断"
+      ],
+      "outputs": ["findings", "reality_flow", "unknowns", "questions"],
+      "score_keys": [],
+      "forbidden": [
+        "复述岗位描述或招聘话术",
+        "把对方说的当成既成事实",
+        "用行业惯例补齐缺失环节"
+      ]
+    },
+    {
+      "id": "D2",
+      "key": "requirements",
+      "name": "要求拆解：硬性要求与隐性要求",
+      "goal": "把要求拆成『可量化或明确规定的硬性条件』与『实际存在但没写出来的软性代价』两部分。",
+      "applies_when": "always",
+      "steps": [
+        "逐项比对硬性要求清单，填『满足 / 不满足 / 未知』",
+        "逐项评估隐性要求清单的要求强度 1-5",
+        "对方明确写出的门槛与『实际会筛人但没说』的门槛分开列"
+      ],
+      "outputs": ["findings", "checklist_results", "scores", "unknowns", "questions"],
+      "checklists": ["hard_requirements", "implicit_requirements"],
+      "score_keys": ["implicit_requirement_intensity"],
+      "forbidden": [
+        "把清单里出现的关键工具名、规范编号、专业概念解读成『可以学』",
+        "把『不限经验/不限学历』当作低门槛"
+      ]
+    },
+    {
+      "id": "D3",
+      "key": "workload_math",
+      "name": "工作量测算",
+      "goal": "把关键数量指标换算成时间，判断在正常工作日内是否物理可行。",
+      "applies_when": "文本中出现任何量化指标",
+      "steps": [
+        "提取所有关于工作量的描述，不同发言人的说法分开记",
+        "区分名义口径与实际口径",
+        "按不同单位耗时做多档情景模拟",
+        "算出纯处理时间与剩余时间，给可行性判断",
+        "补上被忽略的时间成本：查看任务、系统切换、等待响应、处理情绪、填记录"
+      ],
+      "outputs": ["findings", "computation", "scores", "unknowns", "questions"],
+      "checklists": ["workload_time_table"],
+      "score_keys": ["quantity_pressure", "time_pressure"],
+      "computation_template": {
+        "formula": "纯处理时间 = 每日指标数量 × 单项平均处理时长",
+        "available_minutes": 480,
+        "result_fields": ["pure_minutes", "remaining_minutes", "feasibility"]
+      },
+      "forbidden": [
+        "直接把数量当成累或简单",
+        "忽略记录、切换、等待、情绪恢复等额外时间成本",
+        "用单一档位代替多档情景"
+      ]
+    },
+    {
+      "id": "D4",
+      "key": "stress",
+      "name": "压力画像",
+      "goal": "把『压力大』拆成可分别定级的压力类型，每类独立给等级和依据。",
+      "applies_when": "always",
+      "steps": [
+        "对 9 类压力逐项定级 低 / 中 / 高 / 信息不足",
+        "每类写出判断依据所对应的证据编号",
+        "压力等级汇入适配雷达图"
+      ],
+      "outputs": ["findings", "stress_levels", "scores", "unknowns", "questions"],
+      "checklists": ["stress_types"],
+      "score_keys": ["quantity", "time", "performance", "emotion", "monitoring", "attention", "communication", "schedule", "physical"],
+      "forbidden": [
+        "只给一个笼统的『压力大』结论",
+        "等级为空（信息不足必须显式写 unknown）"
+      ]
+    },
+    {
+      "id": "D5",
+      "key": "nominal_vs_effective",
+      "name": "名义口径 vs 实际口径",
+      "goal": "指出同一个指标在两种口径下的强度差异，这是最容易被话术掩盖的地方。",
+      "applies_when": "文本中出现达标类指标",
+      "steps": [
+        "列出所有『X 个』『X 单』『X 稿』『X 个功能』类指标",
+        "为每个指标写出名义口径与实际口径各自含义",
+        "判断指标考核的是哪一个口径，未说明则标未知"
+      ],
+      "outputs": ["findings", "nominal_vs_effective", "unknowns", "questions"],
+      "score_keys": [],
+      "pairs": [
+        { "nominal": "拨打 N 个电话", "effective": "有效沟通 N 个电话", "hidden_cost": "大量未接通、关机、拒接" },
+        { "nominal": "提交 N 个方案稿", "effective": "通过评审的 N 个方案稿", "hidden_cost": "需要大幅修改重做" },
+        { "nominal": "开发 N 个功能", "effective": "上线稳定的 N 个功能", "hidden_cost": "联调与 debug 修复" },
+        { "nominal": "联系 N 个客户", "effective": "成功签约 N 个客户", "hidden_cost": "大量拒绝与无效沟通" }
+      ],
+      "forbidden": ["只列出数字不区分口径"]
+    },
+    {
+      "id": "D6",
+      "key": "work_type",
+      "name": "工作类型判定",
+      "goal": "按实际工作流程判断类型，不看岗位名称。",
+      "applies_when": "always",
+      "steps": [
+        "对照工作类型分类表勾选，可多选",
+        "解释为什么归入这些类别",
+        "说明不属于哪些类别及原因",
+        "给出最准确的综合描述"
+      ],
+      "outputs": ["findings", "type_tags", "unknowns"],
+      "checklists": ["work_type_taxonomy"],
+      "score_keys": [],
+      "forbidden": [
+        "因为工作内容涉及某领域就直接贴该领域的标签",
+        "只按岗位名称分类"
+      ]
+    },
+    {
+      "id": "D7",
+      "key": "personal_fit",
+      "name": "个体适配",
+      "goal": "基于当事人的条件逐项分析适配度。不给单一总分。",
+      "applies_when": "提供了当事人情况档案",
+      "steps": [
+        "对照 10 个适配维度逐项给 1-5 分或 null",
+        "每项写出与当事人哪句话相关（当事人侧证据）",
+        "区分『理论上能做』与『能长期做』",
+        "明确标出当事人心理边界被触碰的维度"
+      ],
+      "outputs": ["findings", "fit_scores", "scores", "unknowns", "questions"],
+      "checklists": ["fit_dimensions"],
+      "score_keys": ["skill", "communication", "repetition", "attention", "emotion_pressure", "kpi", "schedule", "physical", "short_term_transition", "long_term_value"],
+      "forbidden": [
+        "给一个总分代替逐项分析",
+        "把当事人说『可以试试』解读成『能长期承受』",
+        "越过当事人边界替他做取舍"
+      ]
+    },
+    {
+      "id": "D8",
+      "key": "sustainability",
+      "name": "持续性推演：能不能撑住",
+      "goal": "分三个时间尺度判断，区分『理论上能完成』与『可以连续完成不崩溃』。",
+      "applies_when": "提供了当事人情况档案",
+      "steps": [
+        "第一天：会碰到什么、心理感受、当天任务能否完成",
+        "第一周：最可能出的问题、新鲜感消退后的现实冲击、需要警惕的早期信号",
+        "第一个月：真正决定能否留下的因素、理论可行与持续可行之间的差距",
+        "用 5 条区分轴逐条对照"
+      ],
+      "outputs": ["findings", "sustainability", "scores", "unknowns", "questions"],
+      "checklists": ["sustainability_axes"],
+      "score_keys": ["day1", "week1", "month1"],
+      "forbidden": [
+        "只判断单日可行性",
+        "用『坚持一下就好』这类表述替代机制分析"
+      ]
+    },
+    {
+      "id": "D9",
+      "key": "risk_signals",
+      "name": "话术风险扫描",
+      "goal": "识别文本中的风险信号，不武断判定为骗人，而是给出多种可能解释与验证方式。",
+      "applies_when": "always",
+      "steps": [
+        "按风险信号库扫描文本，命中即收录",
+        "每条信号给：正面理解 / 反面理解 / 其他可能",
+        "写清如何验证：问什么、观察什么",
+        "把不同发言人说法不一致处单独列出"
+      ],
+      "outputs": ["findings", "risk_signals", "unknowns", "questions"],
+      "checklists": ["risk_signal_categories"],
+      "score_keys": [],
+      "forbidden": [
+        "把单条话术直接定性为欺骗",
+        "只标风险不给验证路径"
+      ]
+    },
+    {
+      "id": "D10",
+      "key": "real_compensation",
+      "name": "实际回报测算",
+      "goal": "按可确定的信息计算单位时间回报，而不是只看月薪数字。",
+      "applies_when": "文本中出现薪酬或工时信息",
+      "steps": [
+        "提取月薪、工作天数、每日时长、休息计入、加班、节假日补贴、社保扣除",
+        "分情景 A 理想 / B 正常 / C 最差 给出单位时间回报区间",
+        "写明每个情景假设了哪些条件",
+        "分析薪酬区间对应何种劳动投入"
+      ],
+      "outputs": ["findings", "computation", "scenarios", "unknowns", "questions"],
+      "checklists": ["compensation_inputs"],
+      "score_keys": [],
+      "computation_template": {
+        "formula": "单位时间回报 = 实发月收入 ÷ (月工作天数 × 每日净工作时长)",
+        "result_fields": ["hourly_range", "scenario_assumptions"]
+      },
+      "forbidden": [
+        "用名义月薪直接下结论",
+        "忽略午休是否计入、加班是否另计"
+      ]
+    },
+    {
+      "id": "D11",
+      "key": "questions",
+      "name": "入职前必须问清的问题",
+      "goal": "产出 10-15 个具体到可以直接复制发送的问题，用于补齐缺口和验证疑点。",
+      "applies_when": "always",
+      "steps": [
+        "按五类分组：工作量与 KPI / 薪酬与福利 / 时间与排班 / 环境与内容 / 组织与岗位",
+        "优先覆盖信息不一致处与影响收入的因素",
+        "每条标优先级 high / medium / low，并写明要验证哪个维度"
+      ],
+      "outputs": ["questions"],
+      "checklists": ["question_categories"],
+      "score_keys": [],
+      "forbidden": [
+        "开放式提问（如『工作环境怎么样』）",
+        "少于 10 条或多于 15 条",
+        "问题无法直接复制发送"
+      ]
+    },
+    {
+      "id": "D12",
+      "key": "decision",
+      "name": "情景推演与决策表",
+      "goal": "不给『去 / 不去』的简单结论，而是给出三种情景推演与三档条件决策表。",
+      "applies_when": "提供了当事人情况档案",
+      "steps": [
+        "情景 A：对方描述基本可信 → 成立条件、实际会是什么样、适合什么人",
+        "情景 B：描述存在明显水分 → 会出现什么、最坏情况怎么应对",
+        "情景 C：当事人有特定优先需求 → 最该重点观察哪些指标、什么信号该止损",
+        "填决策表三档：可以考虑 / 需要谨慎 / 明显不匹配"
+      ],
+      "outputs": ["scenarios", "decision_table", "next_action"],
+      "checklists": ["decision_tiers", "scenario_types"],
+      "score_keys": [],
+      "forbidden": [
+        "替当事人宣布最终决定",
+        "为了让报告好看而凑出推荐项",
+        "给出多于一个的『下一步动作』"
+      ]
+    }
+  ],
+
+  "checklists": {
+    "hard_requirements": [
+      { "key": "daily_hours", "item": "每天工作多少小时", "point": "对方声称的时长 vs 排班表时长", "scope": "全行业通用" },
+      { "key": "rest_days", "item": "每月休息多少天", "point": "不同发言人说法是否一致", "scope": "全行业通用" },
+      { "key": "fixed_shift", "item": "是否固定排班", "point": "班次类型、轮换频率", "scope": "制造业/医疗/零售/客服等" },
+      { "key": "holiday_work", "item": "是否需要节假日工作", "point": "节假日安排与补偿", "scope": "服务业/互联网等" },
+      { "key": "daily_quota", "item": "每日任务或指标数量", "point": "如联系数、工单数、产出件数", "scope": "视岗位而定" },
+      { "key": "revenue_kpi", "item": "是否有业绩或创收指标", "point": "是否有回款/销售额要求", "scope": "销售/商务/项目管理/运营等" },
+      { "key": "per_item_duration", "item": "是否有单次处理时长要求", "point": "如通话最低时长、响应时限", "scope": "客服/技术支持/开发等" },
+      { "key": "success_rate", "item": "是否有成功率或完成率要求", "point": "如接通率、转化率、通过率", "scope": "销售/客服/审核/开发等" },
+      { "key": "qa_audit", "item": "是否有质量审核或抽检", "point": "质检形式与标准、是否影响收入", "scope": "全行业通用" },
+      { "key": "kpi_aggregate", "item": "是否有 KPI", "point": "所有量化考核指标汇总", "scope": "全行业通用" },
+      { "key": "penalty", "item": "是否有迟到或未完成任务的处罚", "point": "处罚机制：扣钱/警告/淘汰", "scope": "全行业通用" },
+      { "key": "overtime", "item": "是否需要加班", "point": "加班要求与补偿方式", "scope": "全行业通用" },
+      { "key": "training", "item": "是否需要培训", "point": "培训时长、是否带薪、有无绑定条件", "scope": "全行业通用" },
+      { "key": "tools", "item": "是否需要使用特定系统或工具", "point": "系统名称与操作复杂度", "scope": "技术/运营/财务/设计等" }
+    ],
+
+    "implicit_requirements": [
+      { "key": "continuous_output", "item": "是否需要持续主动输出", "point": "是否要求不停沟通或产出，几乎没有空档", "scope": "视岗位而定" },
+      { "key": "rejection", "item": "是否经常面对否定或驳回", "point": "如方案被拒、代码被打回、客户拒绝", "scope": "设计/开发/销售/客服等" },
+      { "key": "negative_emotion", "item": "是否需要处理负面情绪", "point": "是否经常面对愤怒、质疑、投诉", "scope": "客服/销售/行政/HR/社工等" },
+      { "key": "persuasion", "item": "是否需要说服或影响他人", "point": "核心工作是否依赖改变对方意愿", "scope": "销售/商务/项目管理/市场等" },
+      { "key": "fast_reaction", "item": "是否需要快速反应", "point": "是否需要临场应变、即时作答", "scope": "客服/运营/急诊/交易等" },
+      { "key": "sustained_attention", "item": "是否需要长期保持注意力", "point": "长时间连续专注的要求", "scope": "技术/分析/审核/驾驶等" },
+      { "key": "complex_memory", "item": "是否需要记忆复杂流程", "point": "流程、规范、话术的记忆量", "scope": "金融/法律/医疗/客服等" },
+      { "key": "multitasking", "item": "是否需要多任务或多工具切换", "point": "同时操作多个系统或并行处理", "scope": "运营/行政/项目管理/交易等" },
+      { "key": "monitoring_tolerance", "item": "是否需要承受过程监控", "point": "是否被实时查看进度或录音质检", "scope": "全行业通用" },
+      { "key": "dual_pressure", "item": "是否存在数量与质量双重考核", "point": "既要求做得快又要求做得好", "scope": "全行业通用" }
+    ],
+
+    "workload_time_table": {
+      "assumption": "每日按 8 小时（480 分钟）连续处理计算",
+      "rows": [
+        { "per_item_seconds": 30, "pure_minutes": 85, "remaining_minutes": 365, "feasibility": "轻松完成" },
+        { "per_item_seconds": 60, "pure_minutes": 170, "remaining_minutes": 280, "feasibility": "可以完成" },
+        { "per_item_seconds": 120, "pure_minutes": 340, "remaining_minutes": 110, "feasibility": "紧张但可行" },
+        { "per_item_seconds": 180, "pure_minutes": 510, "remaining_minutes": null, "feasibility": "不可能完成" }
+      ],
+      "note": "按 170 个/日标定；换成其他日指标数量时按同比例缩放。剩余时间为负说明在纯处理层面就已经越过工作日上限。"
+    },
+
+    "stress_types": [
+      { "key": "quantity", "label": "A. 数量压力", "probe": "每天必须完成多少任务" },
+      { "key": "time", "label": "B. 时间压力", "probe": "是否存在单位时间内必须完成的要求" },
+      { "key": "performance", "label": "C. 业绩压力", "probe": "是否必须完成一定金额或转化结果" },
+      { "key": "emotion", "label": "D. 情绪压力", "probe": "是否经常面对否定、拒绝、投诉" },
+      { "key": "monitoring", "label": "E. 监控压力", "probe": "是否被实时查看工作进度或录音质检" },
+      { "key": "attention", "label": "F. 注意力压力", "probe": "是否需要长时间连续重复专注" },
+      { "key": "communication", "label": "G. 沟通压力", "probe": "是否需要临场解释、争辩、说服" },
+      { "key": "schedule", "label": "H. 排班压力", "probe": "是否存在长期早晚班、轮班、节假日工作" },
+      { "key": "physical", "label": "I. 身体压力", "probe": "是否需要久坐、久站、重体力或高强度移动" }
+    ],
+
+    "work_type_taxonomy": [
+      { "key": "customer_service", "label": "客户服务类", "trait": "以接听或回复客户咨询为主" },
+      { "key": "after_sales", "label": "售后/运维类", "trait": "处理售后问题、维护客户或系统稳定" },
+      { "key": "sales", "label": "销售/商务类", "trait": "以促成交易、签单、拓展客户为主" },
+      { "key": "collection_risk", "label": "追款/风控类", "trait": "以追回欠款、降低坏账风险为主" },
+      { "key": "complaint_pr", "label": "客诉/公关类", "trait": "处理投诉与危机沟通" },
+      { "key": "biz_communication", "label": "商务沟通类", "trait": "以谈判、合作洽谈、对外联络为主" },
+      { "key": "operations", "label": "运营类", "trait": "以内容运营、用户运营、活动运营为主" },
+      { "key": "data_analysis", "label": "数据/分析类", "trait": "以数据处理、分析、报表为主" },
+      { "key": "audit_qc", "label": "审核/质检类", "trait": "以内容审核、质量检查为主" },
+      { "key": "general_support", "label": "综合支持类", "trait": "行政、人事、财务等支持职能" },
+      { "key": "project_management", "label": "项目管理类", "trait": "以规划、进度跟踪、协调资源为主" },
+      { "key": "engineering", "label": "技术开发类", "trait": "以编码开发、系统架构为主" },
+      { "key": "design", "label": "创意设计类", "trait": "以视觉设计、创意策划为主" },
+      { "key": "content_creation", "label": "内容创作类", "trait": "以文章撰写、视频制作、脚本为主" },
+      { "key": "production", "label": "生产制造类", "trait": "以加工、装配、质检为主" },
+      { "key": "logistics", "label": "物流配送类", "trait": "以仓储、分拣、配送为主" }
+    ],
+
+    "fit_dimensions": [
+      { "key": "skill", "label": "① 技能适配度", "point": "现有技能与该角色要求的重合度", "general": "含硬技能与工具熟练度" },
+      { "key": "communication", "label": "② 沟通适配度", "point": "所需的沟通量与强度", "general": "含电话、书面、面谈、演示" },
+      { "key": "repetition", "label": "③ 重复劳动适配度", "point": "工作重复性与个人耐受度", "general": "含重复沟通、重复操作、重复审核" },
+      { "key": "attention", "label": "④ 注意力适配度", "point": "注意力要求与个人习惯是否相合", "general": "含长时间盯屏、持续专注、频繁切换" },
+      { "key": "emotion_pressure", "label": "⑤ 情绪压力适配度", "point": "情绪消耗与个人承受力", "general": "含面对负面情绪、被拒绝、被质疑" },
+      { "key": "kpi", "label": "⑥ KPI 适配度", "point": "量化考核压力与个人工作风格", "general": "含数量指标、质量指标、双重考核" },
+      { "key": "schedule", "label": "⑦ 排班适配度", "point": "排班方式与个人生活安排", "general": "含早晚班、大小周、倒班、节假日" },
+      { "key": "physical", "label": "⑧ 身体劳动适配度", "point": "身体要求与个人体能", "general": "含久坐、久站、重体力、通勤强度" },
+      { "key": "short_term_transition", "label": "⑨ 短期过渡适配度", "point": "作为短期过渡工作的整体适配", "general": "综合前八项，结合当事人的时间预期" },
+      { "key": "long_term_value", "label": "⑩ 长期发展价值", "point": "技能积累与可迁移性", "general": "客观描述能积累什么，不夸大" }
+    ],
+
+    "sustainability_axes": [
+      { "key": "energy", "label": "体力/精力", "theoretical": "某一天咬牙能撑住", "sustained": "连续 22 天都能保持基本状态" },
+      { "key": "emotion", "label": "情绪", "theoretical": "偶尔面对负面情绪能处理", "sustained": "每天面对负面情绪不会持续积压" },
+      { "key": "psych", "label": "心理压力", "theoretical": "知道目标后觉得应该能完成", "sustained": "不需要每天靠意志力硬扛" },
+      { "key": "body", "label": "身体反应", "theoretical": "没有明显身体不适", "sustained": "不会出现失眠、头痛、持续性疲劳" },
+      { "key": "satisfaction", "label": "工作满意度", "theoretical": "不讨厌这份工作", "sustained": "对工作内容不产生强烈抵触" }
+    ],
+
+    "risk_signal_categories": [
+      { "key": "hedge_words", "label": "模糊限定词", "patterns": ["平均", "大概", "预估", "正常情况下"] },
+      { "key": "no_pressure_claim", "label": "否认压力型", "patterns": ["只要认真做就可以", "没有业绩压力"] },
+      { "key": "personal_ability", "label": "归因个人型", "patterns": ["主要看个人能力", "新人前期会有人带"] },
+      { "key": "base_task_claim", "label": "基础任务型", "patterns": ["完成基础任务即可"] },
+      { "key": "salary_range", "label": "宽幅薪资型", "patterns": ["薪资 X 到 Y", "上不封顶"] },
+      { "key": "flexible_time_claim", "label": "弹性时间型", "patterns": ["做完了可以自由安排"] },
+      { "key": "preemptive_denial", "label": "预先否认型", "patterns": ["我们并不是 XX"] },
+      { "key": "inconsistency", "label": "说法不一致型", "patterns": ["不同发言人对同一事实说法不一致"] },
+      { "key": "conditional_promise", "label": "条件承诺型", "patterns": ["如果……就……"] },
+      { "key": "evasion", "label": "回避具体型", "patterns": ["回避具体问题，用模糊表述搪塞"] },
+      { "key": "growth_over_content", "label": "只谈成长型", "patterns": ["过度强调机会与成长，回避实际工作内容"] },
+      { "key": "culture_wrapping", "label": "文化包装型", "patterns": ["狼性文化", "奋斗者协议"] }
+    ],
+
+    "compensation_inputs": [
+      { "key": "salary", "item": "月薪", "extract": "底薪、绩效范围、综合到手" },
+      { "key": "work_days", "item": "工作天数", "extract": "月休天数" },
+      { "key": "daily_hours", "item": "每天工作时长", "extract": "班次时长、是否含午休" },
+      { "key": "break_included", "item": "是否包含休息时间", "extract": "午休时长、自由支配时间" },
+      { "key": "overtime", "item": "加班", "extract": "是否需要加班、加班费计算方式" },
+      { "key": "holiday_pay", "item": "节假日补贴", "extract": "节假日工资计算方式" },
+      { "key": "social_insurance", "item": "社保扣除", "extract": "五险一金个人承担部分" }
+    ],
+
+    "question_categories": [
+      { "key": "workload_kpi", "label": "关于工作量和 KPI", "count": "3-4" },
+      { "key": "pay_benefit", "label": "关于薪酬和福利", "count": "3-4" },
+      { "key": "time_shift", "label": "关于工作时间和排班", "count": "2-3" },
+      { "key": "environment_content", "label": "关于工作环境和内容", "count": "2-3" },
+      { "key": "org_position", "label": "关于组织和岗位", "count": "2-3" }
+    ],
+
+    "decision_tiers": [
+      { "key": "consider", "label": "可以考虑", "rule": "哪些条件满足时，可以进入下一步" },
+      { "key": "caution", "label": "需要谨慎", "rule": "哪些条件出现时，需要先验证再决定" },
+      { "key": "mismatch", "label": "明显不匹配", "rule": "哪些条件出现时，说明这条路不值得投入" }
+    ],
+
+    "scenario_types": [
+      { "key": "A", "label": "对方描述基本可信", "fields": ["成立条件", "实际会是什么样", "适合什么人"] },
+      { "key": "B", "label": "描述存在明显水分", "fields": ["会出现什么", "最坏情况", "如何应对"] },
+      { "key": "C", "label": "当事人有特定优先需求", "fields": ["最该重点观察的指标", "判断是否止损的信号"] }
+    ]
+  },
+
+  "charts": {
+    "radar": [
+      {
+        "key": "requirements",
+        "title": "要求综合评估",
+        "source_dimension": "D2",
+        "axes": ["implicit_requirement_intensity"],
+        "axes_source": "checklists.implicit_requirements",
+        "scale": "intensity_score"
+      },
+      {
+        "key": "stress",
+        "title": "压力来源分布",
+        "source_dimension": "D4",
+        "axes_source": "checklists.stress_types",
+        "scale": "intensity_score",
+        "note": "pressure_level 需映射为 1-5：low=2 medium=3 high=5 unknown=null"
+      },
+      {
+        "key": "fit",
+        "title": "个体适配度",
+        "source_dimension": "D7",
+        "axes_source": "checklists.fit_dimensions",
+        "scale": "fit_score"
+      }
+    ],
+    "tables": [
+      { "key": "workload_time", "source": "dimensions.D3.computation" },
+      { "key": "hourly_wage", "source": "dimensions.D10.computation" },
+      { "key": "decision", "source": "dimensions.D12.decision_table" }
+    ]
+  },
+
+  "outputs": {
+    "primary": "report.json",
+    "renders": ["report.html", "report.docx"],
+    "anonymize": ["人名", "公司名", "具体地址", "可反查到个人的组合信息"]
+  }
+}

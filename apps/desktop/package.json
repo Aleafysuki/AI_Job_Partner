@@ -1,0 +1,47 @@
+{
+  "name": "@aijob/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI Job Partner 桌面端外壳（Electron）",
+  "author": "AI Job Partner",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "build:win": "electron-vite build && electron-builder --win",
+    "start": "electron-vite preview",
+    "pack:win": "electron-vite build && electron-builder --win --dir",
+    "web:dev": "vite --config vite.web.config.ts",
+    "web:build": "vite build --config vite.web.config.ts",
+    "web:single": "vite build --config vite.web.config.ts --mode single",
+    "web:android": "vite build --config vite.web.config.ts --mode android",
+    "smoke:ui": "electron scripts/ui-smoke.cjs",
+    "smoke:app": "node scripts/app-smoke.mjs",
+    "smoke:mobile": "electron scripts/mobile-smoke.cjs",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^26.6.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^5.2.0",
+    "electron": "44.4.5",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "mammoth": "^1.13.0",
+    "pdfjs-dist": "^6.3.289",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^7.3.6",
+    "vite-plugin-singlefile": "^2.3.3",
+    "zustand": "^5.0.15"
+  },
+  "dependencies": {
+    "@tesseract.js-data/chi_sim": "^1.0.0",
+    "@tesseract.js-data/eng": "^1.0.0",
+    "tesseract.js": "^7.0.0"
+  }
+}

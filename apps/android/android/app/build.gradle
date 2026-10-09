@@ -1,0 +1,94 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace = "com.aijob.partner"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "com.aijob.partner"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        /*
+          原值留痕：versionCode 1 / versionName "1.0"
+          改成本项目自己的版本序列，与 packages/core/src/version.ts 的
+          APP_VERSION（0.2.0）对齐 —— 否则设置页里写着 v0.2、
+          而系统的应用信息里写着 1.0，用户会以为装错了版本。
+          versionCode 用 2 对应 CURRENT_RELEASE = 'v0.2'，以后涨版本同步加一。
+        */
+        versionCode 2
+        versionName "0.2.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+
+    /*
+     * 截图 OCR（job.input_image）
+     *
+     * v0.5 初版用 ML Kit on-device（原生 AAR），**已撤回**。
+     *
+     * 撤回原因（实测，不是猜的）：所有 16.x / 19.x 版本的
+     * play-services-mlkit-text-recognition AAR 都**不含**公开 API 类
+     * （TextRecognition / TextRecognizer 都不在里面）——
+     * 它们走 dynamite 运行时加载，而本机 Gradle 缓存里只有描述符。
+     * 于是编译报「找不到符号」，而 android:check 这个静态检查查不出类型问题。
+     *
+     * 现在的方案：OCR 在 **WebView 里跑 tesseract WASM**，
+     * 与桌面端同一套代码、同一个已验证的实现（实测 0.7 秒识别 7 行全对）。
+     * 好处不只是「绕开 ML Kit」：
+     *   - 两个宿主跑同一份 JS，行为一致，不需要维护两套实现；
+     *   - 模型随 npm 包分发，离线可用；
+     *   - APK 不必因为 ML Kit 的 dynamite 而增加体积。
+     *
+     * 代价：WebView 里 WASM 推理比原生慢，且中文小字识别率弱一些。
+     * 这个代价由界面上的提示承担（见 domain/ocr.ts 的引擎标识）。
+     */    /*
+      原生出网客户端。用 OkHttp 而不是 JDK 自带的 HttpURLConnection，理由：
+        1. 连接池与 HTTP/2 —— 面试复盘的转写要按分片连续上传几十次，
+           每次都重建 TLS 连接在移动网络下是明显的时间浪费；
+        2. per-call 超时（AijobBridge 里的 callTimeout）比 HttpURLConnection
+           的三段式超时设置清楚得多；
+        3. 它是 Android 生态里事实标准的依赖，不是本项目引入的偏门库。
+
+      注意这条要加在这里，不能加到 app/capacitor.build.gradle ——
+      那个文件每次 cap sync 都会被重写覆盖。
+    */
+    implementation "com.squareup.okhttp3:okhttp:$okhttpVersion"
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

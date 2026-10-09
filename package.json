@@ -1,0 +1,41 @@
+{
+  "name": "ai-job-partner",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI Job Partner — 个人求职分析、简历优化与面试训练助手（桌面端）",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace @aijob/desktop",
+    "build": "npm run build --workspace @aijob/desktop",
+    "build:win": "npm run build:win --workspace @aijob/desktop",
+    "pack:win": "npm run pack:win --workspace @aijob/desktop",
+    "start": "npm run start --workspace @aijob/desktop",
+    "web:dev": "npm run web:dev --workspace @aijob/desktop",
+    "web:build": "npm run web:build --workspace @aijob/desktop",
+    "web:single": "npm run web:single --workspace @aijob/desktop",
+    "web:android": "npm run web:android --workspace @aijob/desktop",
+    "android:check": "npm run check --workspace @aijob/android",
+    "android:sync": "npm run web:android && npm run ocr:sync && node apps/android/scripts/sync.mjs",
+    "android:open": "npm run open --workspace @aijob/android",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "smoke:ui": "npm run smoke:ui --workspace @aijob/desktop",
+    "smoke:app": "npm run smoke:app --workspace @aijob/desktop",
+    "smoke:mobile": "npm run smoke:mobile --workspace @aijob/desktop",
+    "ocr:sync": "node apps/desktop/scripts/sync-tesseract.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "vite": "^7.3.6",
+    "vitest": "^5.0.2"
+  },
+  "dependencies": {
+    "tesseract.js": "^7.0.0"
+  }
+}

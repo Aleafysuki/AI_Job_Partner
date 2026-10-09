@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Base application theme. -->
+    <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
+        <!-- Customize your theme here. -->
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+        <item name="colorAccent">@color/colorAccent</item>
+        <!--
+          状态栏跟 Metro 头部同色（styles-metro.css 的 metro-accent = #0050EF）。
+          注：这里不写 CSS 自定义属性的双连字符前缀 —— XML 注释里不允许
+          连续两个连字符，写了整个文件会解析失败。
+          WebView 的内容从状态栏下方开始，如果这里保持默认的深灰，
+          屏幕最上方会出现一条与蓝色头部明显不同的横带 —— 一眼就看得出是「套壳」。
+          windowLightStatusBar=false 让时间/电量图标保持白色，压在蓝底上才读得清。
+        -->
+        <item name="android:statusBarColor">@color/metro_blue</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+    <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:background">@null</item>
+        <item name="android:statusBarColor">@color/metro_blue</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+
+    <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <item name="android:background">@drawable/splash</item>
+        <!-- 启动图期间状态栏也是 Metro Blue：启动图整屏就是这个色，
+             顶上一道别的颜色会显得启动得「脏」。 -->
+        <item name="android:statusBarColor">@color/metro_blue</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>
