@@ -24,7 +24,7 @@
  */
 
 export const APP_NAME = 'AI Job Partner';
-export const APP_VERSION = '0.4.0';
+export const APP_VERSION = '0.6.0';
 export const APP_TAGLINE = '把你的经历与目标岗位放在一起，看清我有什么、岗位要什么、我缺什么。';
 
 /**
@@ -39,16 +39,19 @@ export const APP_TAGLINE = '把你的经历与目标岗位放在一起，看清�
  *   在当前版本就该生效。只有 APP_VERSION 从 0.2.0 升到 0.3.0，
  *   让用户知道装的是修好的那一版。
  */
-export type Release = 'v0.1' | 'v0.2' | 'v0.3' | 'v0.4' | 'future';
+export type Release = 'v0.1' | 'v0.2' | 'v0.3' | 'v0.4' | 'v0.5' | 'v0.6' | 'future';
 
-export const RELEASE_ORDER: Release[] = ['v0.1', 'v0.2', 'v0.3', 'v0.4', 'future'];
+export const RELEASE_ORDER: Release[] = ['v0.1', 'v0.2', 'v0.3', 'v0.4', 'v0.5', 'v0.6', 'future'];
 
 /**
  * 当前发布版本 —— 提升这里即完成一次「版本更新」。
  *
- * 保持 'v0.2'：v0.3 的槽位留给路线图里的功能，本批修正不抢占。
+ * v0.5（双端 OCR + 交互式追问）与 v0.6（累积不丢 + 训练闭环）在 2026-10-09 一起补登。
+ * 之前没登是因为当时只改了 APP_VERSION 没升 CURRENT_RELEASE，导致这两批能力
+ * 在能力表里没有对应槽位 —— 这是「版本号只解锁真做过的」这条约束的另一半：
+ * 真做过了却没解锁，设置页就看不到，用户也无从知道装的是哪一版。
  */
-export const CURRENT_RELEASE: Release = 'v0.4';
+export const CURRENT_RELEASE: Release = 'v0.6';
 
 export const RELEASE_LABEL: Record<Release, string> = {
   'v0.1': 'v0.1 主链路',
@@ -57,6 +60,8 @@ export const RELEASE_LABEL: Record<Release, string> = {
   'v0.2': 'v0.2 能力问诊 · 薄弱项训练 · 面试复盘 · 可用性修正',
   'v0.3': 'v0.3 岗位 OCR · 简历建议 · 报告导出',
   'v0.4': 'v0.4 面试训练与模拟',
+  'v0.5': 'v0.5 双端本地 OCR · 交互式追问',
+  'v0.6': 'v0.6 累积不丢 · AI 总结审核 · 训练闭环',
   future: '未排期',
 };
 
@@ -275,6 +280,142 @@ export const CAPABILITIES: CapabilityDef[] = [
     description: '按 token 记录每次调用并折算费用，设置页可查总额、按用途分组与预算上限；本地模型与降级调用不计费',
     since: 'v0.2',
     docRef: '用户实测反馈（希望有用量与计费显示）',
+  },
+  // ---------------- v0.5 ----------------
+  {
+    id: 'ocr.local_inference',
+    label: '本地 OCR（双端同一实现）',
+    description:
+      '两个宿主都在渲染层跑 tesseract WASM，模型随包分发，识别过程零网络请求。' +
+      '初版试过 Android ML Kit，因其 AAR 只含 dynamite 描述符、无公开 API 类而撤回；' +
+      '撤回后两端行为一致、只维护一份实现',
+    since: 'v0.5',
+    docRef: '用户要求（双端集成 OCR，走本地推理模型路径）',
+  },
+  {
+    id: 'ocr.user_verify',
+    label: 'OCR 结果需人工核对',
+    description:
+      '识别结果先进文本框不自动提交。置信度不能只看均值 ——「平均 0.85 但三行 0.3」' +
+      '与「每行 0.85」对用户完全不同，低置信度的行会单独标出来',
+    since: 'v0.5',
+    docRef: '产品判断（不给用户一条看不出对错的自动结果）',
+  },
+  {
+    id: 'interview.followup_from_answer',
+    label: '问题从上一个回答里长出来',
+    description:
+      '反馈只说缺什么并回引用户原话（anchor），下一题从上一题没答到的地方长出来；' +
+      '不生成可照读的台词。追问可终止：最多 2 下 / 每题 3 轮 / 短于 40 字不追',
+    since: 'v0.5',
+    docRef: '用户要求（问题尽量做到交互式，让 AI 从对话获知信息）',
+  },
+  // ---------------- v0.6 ----------------
+  {
+    id: 'assess.persist_progress',
+    label: '问诊进度不丢',
+    description:
+      '问诊会话与逐题答案进 WorkspaceSnapshot，切页、关掉应用、重启都能续答。' +
+      '答题中的草稿也存 —— 之前草稿在组件 useState 里，切页即丢，观感就是白填了',
+    since: 'v0.6',
+    docRef: '用户实测反馈（「填了一遍却要求重填」）',
+  },
+  {
+    id: 'assess.replan_keeps_answers',
+    label: '换题不换答案',
+    description:
+      '「换一套问题」只换未答的题，已答的题与答案原样保留，被换掉的题留痕。' +
+      '之前这个按钮实为重开一个会话，已答的全部被清空 —— 全项目唯一一处' +
+      '「点一个看起来无害的按钮就丢数据」的地方',
+    since: 'v0.6',
+    docRef: '用户实测反馈',
+  },
+  {
+    id: 'assess.filter_assessed',
+    label: '已问诊的不再要求重填',
+    description:
+      '推荐列表过滤掉「问过且结论仍生效」的技能，改由只读区展示结论 + 给「重问 / 先留着」。' +
+      '结论是否过时由用户在设置页决定判定口径（内容变了 / 加时间线 / 永不提示）',
+    since: 'v0.6',
+    docRef: '用户实测反馈（换入口又被要求重填）',
+  },
+  {
+    id: 'assess.evidence_dedupe',
+    label: '问诊证据去重',
+    description:
+      '同一个技能重复问诊不会堆出多条一模一样的证据（之前是裸数组拼接，' +
+      '会虚高「N 条证据」并让匹配引擎把一条当三条独立支撑）',
+    since: 'v0.6',
+    docRef: '调查发现',
+  },
+  {
+    id: 'assess.ai_summary_review',
+    label: '回答整理 + 用户逐条审核',
+    description:
+      '把口语回答整理成能进档案的条目，每个字段带 anchor（用户原话出处）。' +
+      '没有出处的字段一律丢弃并明说「这句我没敢替你补」——' +
+      '这批文字会写进跨岗位保留的能力库，编造的内容在面试第二个问题就会崩',
+    since: 'v0.6',
+    docRef: '用户要求（回答交由 AI 总结并填补到个人档案）',
+  },
+  {
+    id: 'assess.before_after_diff',
+    label: '问诊前后对比',
+    description:
+      '结论页展示「这次问诊改了什么」。before 快照必须在写入档案之前取 ——' +
+      '结论是覆盖式写入的（去重键 skillName），写完就回不到旧状态',
+    since: 'v0.6',
+    docRef: '调查发现（EvaluateOutput 里原本没有旧等级）',
+  },
+  {
+    id: 'training.submit_evidence',
+    label: '训练可补进档案',
+    description:
+      '训练题能把这段经历补成证据（TrainingItem.evidenceIds）。' +
+      '只能补该题对应技能的证据，且必须能整体取消；' +
+      '强度仍按 qa 封顶为「中」—— 练到会讲不等于真做过',
+    since: 'v0.6',
+    docRef: '用户要求（训练缺少「让用户补充证据」的能力）',
+  },
+  {
+    id: 'training.judge_verdict',
+    label: '训练判定是否达标',
+    description:
+      '判定只看可核对信号：有没有场景 / 因果 / 数字载体 / 答到期望点。' +
+      '不评价表达（与「表达类薄弱点不进能力库」同源）。' +
+      '达标只提示重跑匹配，不给「这个岗位能投了」的结论',
+    since: 'v0.6',
+    docRef: '用户要求（训练要练到可以满足要求）',
+  },
+  {
+    id: 'training.followup_loop',
+    label: '训练不达标可追问',
+    description:
+      '没答到点时从回答里长出追问（复用 v0.5 引擎，终止条件一致）。' +
+      '还有「先放着」这个出口 —— 判定不过不代表答案没价值，' +
+      '没有出口的话用户只能反复重答或删掉重来',
+    since: 'v0.6',
+    docRef: '用户要求',
+  },
+  {
+    id: 'training.keep_answers_on_rebuild',
+    label: '重新生成计划保留答案',
+    description:
+      '上一份计划里用户已写的答案、自评、已补证据按（技能+薄弱类型）搬过来。' +
+      '之前 store 直接 deleteTrainingPlan 重建，一整晚的回答全没了 —— ' +
+      '与「换题清空答案」是同一类错误',
+    since: 'v0.6',
+    docRef: '调查发现（store.ts 重建计划时删旧计划）',
+  },
+  {
+    id: 'review.user_decides',
+    label: '三处取舍交给用户决定',
+    description:
+      '「结论何时算过时」「审核界面一屏还是逐条」「判定依据是否显示」' +
+      '都不是「哪种都对」的价值取舍，开发替用户选等于替用户表态。' +
+      '设置页可自行调整，默认值保守',
+    since: 'v0.6',
+    docRef: '开发任务书 v0.6 的三个决策点',
   },
   {
     id: 'job.show_raw_text',

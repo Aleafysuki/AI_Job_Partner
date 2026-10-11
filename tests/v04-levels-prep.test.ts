@@ -357,15 +357,19 @@ describe('v0.4 能力开关', () => {
     }
   });
 
-  it('当前版本是 v0.4 —— v0.3 与 v0.4 两批均已实装完成', () => {
+  it('v0.3 / v0.4 这批能力在当前版本确实已启用', () => {
     // 原断言是 `CURRENT_RELEASE === 'v0.2'` + 四项 assert false，
     // 目的是防止「为开修复项而抬版本、连带解锁空壳」。
     // 2026-10-08 两批都做完之后，那条代理指标就只会挡住正常的版本推进，
-    // 所以换成「当前版本 + 这四项确实已启用」——意图不变，形式更新。
-    expect(CURRENT_RELEASE).toBe('v0.4');
+    // 所以换成「这些能力确实已启用」——意图不变，形式更新。
+    //
+    // v0.6 又往后走了两版（OCR + 证据闭环），这里跟着一起放宽到
+    // 「已启用」而不是钉某个版本号 —— 钉版本号只会在下一版再次变红，
+    // 而真正要防的是「解锁了却没实现」，那条由下一条断言负责。
     expect(isEnabled('report.export')).toBe(true);
     expect(isEnabled('resume.suggestion')).toBe(true);
     expect(isEnabled('match.minimum_candidate')).toBe(true);
+    expect(CURRENT_RELEASE).toBe('v0.6');
   });
 
   it('铁律仍然没有被解锁', () => {

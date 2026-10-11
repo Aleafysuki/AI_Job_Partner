@@ -6,6 +6,7 @@ import {
   SAMPLE_INTERVIEW_TRANSCRIPT,
   SAMPLE_JD,
   SAMPLE_RESUME,
+  SNAPSHOT_SCHEMA_VERSION,
   WorkspaceStore,
   analyzeDimensionsByRule,
   analyzeJobDescription,
@@ -545,7 +546,7 @@ describe('本地存储契约', () => {
     expect(reopened.state.profiles).toHaveLength(1);
     expect(reopened.activeProfile()?.basics.displayName).toBe('持久化测试');
     // v0.2 面试复盘把快照结构推到 3（新增 interviewSessions / debriefReports）
-    expect(reopened.state.schemaVersion).toBe(3);
+    expect(reopened.state.schemaVersion).toBe(SNAPSHOT_SCHEMA_VERSION);
   });
 
   it('v0.1 的旧快照能迁移到 v0.2 结构，且迁移是幂等的', async () => {
@@ -605,7 +606,7 @@ describe('本地存储契约', () => {
     } as never);
 
     const store = await WorkspaceStore.open(port);
-    expect(store.state.schemaVersion).toBe(3);
+    expect(store.state.schemaVersion).toBe(SNAPSHOT_SCHEMA_VERSION);
     expect(store.state.trainingPlans).toEqual([]);
 
     const migrated = store.state.profiles[0];
@@ -618,7 +619,7 @@ describe('本地存储契约', () => {
 
     // 幂等：再迁一次结果不变
     const again = migrateSnapshot(store.state);
-    expect(again.schemaVersion).toBe(3);
+    expect(again.schemaVersion).toBe(SNAPSHOT_SCHEMA_VERSION);
     expect(again.profiles[0].evidence[0].origin).toBe('resume');
     expect(again.trainingPlans).toEqual([]);
     expect(again.interviewSessions).toEqual([]);
@@ -1322,7 +1323,7 @@ describe('面试复盘 · 存储与能力开关', () => {
       ui: { onboardingCompleted: false, dismissedHints: [] },
     };
     const once = migrateSnapshot(raw);
-    expect(once.schemaVersion).toBe(3);
+    expect(once.schemaVersion).toBe(SNAPSHOT_SCHEMA_VERSION);
     expect(once.interviewSessions).toEqual([]);
     expect(once.debriefReports).toEqual([]);
     // 深合并必须补出新增的两组子配置，否则设置页会读到 undefined
@@ -1339,7 +1340,7 @@ describe('面试复盘 · 存储与能力开关', () => {
 
     const reopened = await WorkspaceStore.open(port);
     expect(reopened.interviewSessionById('sess_persist')?.manualTranscript).toContain('云枢');
-    expect(reopened.state.schemaVersion).toBe(3);
+    expect(reopened.state.schemaVersion).toBe(SNAPSHOT_SCHEMA_VERSION);
   });
 
   it('删除岗位不会连带删掉面试记录（它属于「这个人经历过的事」）', async () => {

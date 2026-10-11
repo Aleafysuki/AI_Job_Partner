@@ -399,26 +399,124 @@ export async function buildTrainingPlan(input: BuildTrainingInput): Promise<Buil
   return { plan, trace, warnings: unique(warnings) };
 }
 
-/** 更新单题的作答与自评，返回新的训练计划（不可变更新） */
+/**
+ * 更新单题的作答与自评，返回新的训练计划（不可变更新）。
+ *
+ * v0.6 新增 `judged` 参数：判定结果由 `training-judge.ts` 算好后传进来，
+ * 这里只负责落盘 —— 判定逻辑不放进 store 或 planner，否则同一个口径会出现三份。
+ */
 export function answerTrainingItem(
   plan: TrainingPlan,
   itemId: string,
-  patch: { userAnswer?: string; selfScore?: SelfScore; markReviewed?: boolean },
+  patch: {
+    userAnswer?: string;
+    selfScore?: SelfScore;
+    markReviewed?: boolean;
+    /** v0.6：判定结果 */
+    judged?: { passed: boolean; headline: string };
+    /** v0.6：证据回写后把 id 记到这一题上 */
+    evidenceIds?: string[];
+    /** v0.6：追问轮数 +1 */
+    followUpCount?: number;
+  },
 ): TrainingPlan {
   const items = plan.items.map((item) => {
     if (item.id !== itemId) return item;
+    const now = new Date().toISOString();
+    const answerChanged = patch.userAnswer !== undefined && patch.userAnswer.trim() !== (item.userAnswer ?? '').trim();
+
     const next: TrainingItem = {
       ...item,
       userAnswer: patch.userAnswer !== undefined ? patch.userAnswer : item.userAnswer,
       selfScore: patch.selfScore !== undefined ? patch.selfScore : item.selfScore,
-      updatedAt: new Date().toISOString(),
+      updatedAt: now,
     };
-    if (patch.markReviewed) next.status = 'reviewed';
-    else if (next.userAnswer && next.userAnswer.trim() && typeof next.selfScore === 'number') next.status = 'answered';
-    else if (next.userAnswer && next.userAnswer.trim()) next.status = 'answered';
-    else next.status = 'todo';
+
+    // 证据挂在这一题上（跨轮累积，不覆盖 —— 用户可能分几次补齐）
+    if (patch.evidenceIds?.length) {
+      next.evidenceIds = [...new Set([...(item.evidenceIds ?? []), ...patch.evidenceIds])];
+    }
+    if (patch.followUpCount !== undefined) next.followUpCount = patch.followUpCount;
+    if (patch.judged) next.lastJudgeHeadline = patch.judged.headline;
+
+    if (patch.markReviewed) {
+      next.status = 'reviewed';
+    } else if (patch.judged) {
+      next.status = patch.judged.passed ? 'passed' : 'answered';
+      // 改过答案之后原来的达标判定作废 —— 否则界面上会显示通过，
+      // 但档案里存的是他改之前那段内容
+      next.passedAt = patch.judged.passed ? (item.passedAt ?? now) : undefined;
+      if (patch.judged.passed) next.parked = undefined;
+    } else if (answerChanged) {
+      // 纯文本改动没触发判定：重置到 answered，但**保留答案**。
+      // 之前这里会退回 todo，等于把用户写的字直接藏起来
+      next.status = next.userAnswer && next.userAnswer.trim() ? 'answered' : 'todo';
+      next.passedAt = undefined;
+      next.parked = undefined;
+    } else if (next.userAnswer && next.userAnswer.trim()) {
+      next.status = 'answered';
+    } else {
+      next.status = 'todo';
+    }
     return next;
   });
 
   return { ...plan, items, stats: computePlanStats(items), updatedAt: new Date().toISOString() };
+}
+
+/**
+ * 「先放着」—— 判定没过但用户不想继续练。
+ *
+ * 为什么要留这个动作：判定不过不代表答案没价值，用户可能只是现在不想再花时间。
+ * 所以标记状态和原因，**答案一个字都不删**。
+ * 没有这个出口的话，用户只有两个选择：反复重答，或者删掉计划重来。
+ */
+export function parkTrainingItem(plan: TrainingPlan, itemId: string, reason: string): TrainingPlan {
+  const items = plan.items.map((item) =>
+    item.id === itemId
+      ? { ...item, status: 'parked' as const, parked: { reason, at: new Date().toISOString() }, passedAt: undefined, updatedAt: new Date().toISOString() }
+      : item,
+  );
+  return { ...plan, items, stats: computePlanStats(items), updatedAt: new Date().toISOString() };
+}
+
+/**
+ * 重新生成训练计划时，把上一份里用户已经写过的答案搬过来。
+ *
+ * v0.6 之前 store 直接 `deleteTrainingPlan` 重建，于是：
+ *   用户写了一整晚的回答 → 点「重新生成训练计划」→ 全没了
+ * 这与「换一套问题清空答案」是同一类错误：**用一个看起来无害的操作丢掉用户劳动**。
+ *
+ * 搬运的匹配键是 (技能名 + 薄弱类型)，不是题目 id —— 重新生成时题目 id 是新分配的，
+ * 按 id 匹配会一条都对不上，等于没搬。
+ */
+export function carryOverAnswers(next: TrainingPlan, previous: TrainingPlan | undefined): TrainingPlan {
+  if (!previous || previous.items.length === 0) return next;
+
+  const prevByKey = new Map<string, TrainingItem>();
+  for (const item of previous.items) {
+    const key = `${item.skillName}::${item.weakness}`;
+    const existing = prevByKey.get(key);
+    // 有答案的优先被搬走；都没答案就用先出现的那个
+    if (!existing || (item.userAnswer && !existing.userAnswer)) prevByKey.set(key, item);
+  }
+
+  const items = next.items.map((item) => {
+    const prev = prevByKey.get(`${item.skillName}::${item.weakness}`);
+    if (!prev) return item;
+    if (!prev.userAnswer && !prev.selfScore && !prev.evidenceIds?.length) return item;
+    return {
+      ...item,
+      userAnswer: prev.userAnswer,
+      selfScore: prev.selfScore,
+      // 证据 id 要搬过来：那是已经写进档案的东西，不能因为换了一份计划就显示不出来
+      evidenceIds: prev.evidenceIds,
+      passedAt: prev.passedAt,
+      parked: prev.parked,
+      lastJudgeHeadline: prev.lastJudgeHeadline,
+      status: prev.passedAt ? ('passed' as const) : prev.parked ? ('parked' as const) : prev.userAnswer ? ('answered' as const) : item.status,
+    };
+  });
+
+  return { ...next, items, stats: computePlanStats(items) };
 }

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   SELF_SCORE_OPTIONS,
+  TRAINING_EVIDENCE_WHY,
   TRAINING_TYPE_LABEL,
   TRAINING_WEAKNESS_LABEL,
   formatDateTime,
@@ -8,6 +9,7 @@ import {
   trainingCandidates,
   type SelfScore,
   type TrainingItem,
+  type TrainingJudgement,
 } from '@aijob/core';
 import {
   Badge,
@@ -44,23 +46,38 @@ const STATUS_LABEL: Record<TrainingItem['status'], string> = {
   todo: '待作答',
   answered: '已作答',
   reviewed: '已复习',
+  passed: '已达标',
+  parked: '先放着',
 };
 
 function TrainingCard({
   item,
   draft,
+  judgement,
+  showJudgeReason,
   onDraft,
   onSave,
   onReview,
+  onJudge,
+  onSubmitEvidence,
+  onPark,
+  onResume,
 }: {
   item: TrainingItem;
   draft: string;
+  judgement?: TrainingJudgement;
+  showJudgeReason: boolean;
   onDraft: (value: string) => void;
   onSave: (patch: { userAnswer?: string; selfScore?: SelfScore }) => void;
   onReview: () => void;
+  onJudge: () => void;
+  onSubmitEvidence: () => void;
+  onPark: () => void;
+  onResume: () => void;
 }) {
   const [score, setScore] = useState<SelfScore | undefined>(item.selfScore);
   const dirty = draft !== (item.userAnswer ?? '') || score !== item.selfScore;
+  const evidenceCount = item.evidenceIds?.length ?? 0;
 
   return (
     <Card>
@@ -73,8 +90,21 @@ function TrainingCard({
             重要度 {item.importance === 'high' ? '高' : item.importance === 'medium' ? '中' : '低'}
           </Badge>
           {item.skillCategory === 'unknown' ? <Badge tone="warning">未识别到具体技能</Badge> : null}
+          {evidenceCount > 0 ? <Badge tone="info">已补进档案 {evidenceCount} 条</Badge> : null}
           <span className="flex-1" />
-          <Badge tone={item.status === 'reviewed' ? 'success' : item.status === 'answered' ? 'accent' : 'muted'}>
+          <Badge
+            tone={
+              item.status === 'passed'
+                ? 'success'
+                : item.status === 'reviewed'
+                  ? 'success'
+                  : item.status === 'parked'
+                    ? 'warning'
+                    : item.status === 'answered'
+                      ? 'accent'
+                      : 'muted'
+            }
+          >
             {STATUS_LABEL[item.status]}
           </Badge>
         </div>
@@ -111,12 +141,95 @@ function TrainingCard({
           <Button size="sm" variant="primary" disabled={!dirty} onClick={() => onSave({ userAnswer: draft, selfScore: score })}>
             保存
           </Button>
-          {item.status !== 'reviewed' ? (
+          {item.status !== 'reviewed' && item.status !== 'passed' ? (
             <Button size="sm" variant="ghost" onClick={onReview}>
               标记已复习
             </Button>
           ) : null}
         </div>
+
+        {/* v0.6 追加：判定 + 补证据 + 先放着。
+            这三件事是训练闭环的另一半 ——
+            在此之前训练结果完全不进能力库，用户练完重跑匹配看不到任何变化。*/}
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-2.5">
+          <Button size="sm" disabled={!draft.trim()} onClick={onJudge}>
+            判定是否答到
+          </Button>
+          <Button size="sm" disabled={!draft.trim() || evidenceCount > 0} onClick={onSubmitEvidence}>
+            {evidenceCount > 0 ? '已补进档案' : '把这段经历补进档案'}
+          </Button>
+          <span className="flex-1" />
+          {item.status === 'parked' ? (
+            <Button size="sm" variant="ghost" onClick={onResume}>
+              回来继续
+            </Button>
+          ) : (
+            <Button size="sm" variant="ghost" onClick={onPark}>
+              先放着
+            </Button>
+          )}
+        </div>
+
+        {judgement ? (
+          <div
+            className={cn(
+              'mt-2 rounded-lg border px-3 py-2',
+              judgement.verdict === 'passed'
+                ? 'border-emerald-200 bg-emerald-50'
+                : judgement.verdict === 'too_short'
+                  ? 'border-slate-200 bg-slate-50'
+                  : 'border-amber-200 bg-amber-50',
+            )}
+          >
+            <div
+              className={cn(
+                'text-[12px] font-medium leading-relaxed',
+                judgement.verdict === 'passed' ? 'text-emerald-900' : 'text-amber-900',
+              )}
+            >
+              {judgement.headline}
+            </div>
+            {/* 设置页可以关掉判据展示，但判定本身照常发生 ——
+                藏起来的是解释，不是判定。 */}
+            {showJudgeReason ? (
+              <ul className="mt-1.5 space-y-0.5">
+                {judgement.reasons.map((reason) => (
+                  <li key={reason.key} className="flex gap-1.5 text-[11px] leading-relaxed text-slate-600">
+                    <span className={cn('mt-0.5 shrink-0', reason.ok ? 'text-emerald-600' : 'text-amber-600')}>
+                      {reason.ok ? '有' : '缺'}
+                    </span>
+                    <span>{reason.text}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="mt-1 text-[11px] text-slate-500">
+                判定依据已隐藏（可在设置页打开）。判定本身照常发生 —— 隐藏的是解释，不是判定。
+              </div>
+            )}
+            {judgement.hooks.length > 0 ? (
+              <div className="mt-2 rounded-md border border-amber-200 bg-white px-3 py-2">
+                <div className="text-[11px] font-medium text-amber-900">接下来可以顺着这句往下答</div>
+                <p className="mt-1 text-[11px] leading-relaxed text-slate-700">{judgement.hooks[0].text}</p>
+                <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
+                  为什么问这个：{judgement.hooks[0].intent}
+                </p>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {item.lastJudgeHeadline && !judgement ? (
+          <p className="mt-2 text-[11px] leading-relaxed text-slate-500">上次判定：{item.lastJudgeHeadline}</p>
+        ) : null}
+
+        {item.parked ? (
+          <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+            <div className="text-[11px] leading-relaxed text-slate-600">
+              已标记「先放着」：{item.parked.reason}。你写的答案一个字都没删，随时可以回来继续。
+            </div>
+          </div>
+        ) : null}
 
         <div className="mt-2 space-y-2">
           {/* v0.3 追加：参考答案。
@@ -169,8 +282,15 @@ export function TrainingPage() {
   const navigate = useApp((s) => s.navigate);
   const generateTraining = useApp((s) => s.generateTraining);
   const updateTrainingItem = useApp((s) => s.updateTrainingItem);
+  const judgeTraining = useApp((s) => s.judgeTraining);
+  const submitTrainingEvidence = useApp((s) => s.submitTrainingEvidence);
+  const parkTraining = useApp((s) => s.parkTraining);
+  const trainingJudge = useApp((s) => s.trainingJudge);
   const deleteTrainingPlan = useApp((s) => s.deleteTrainingPlan);
   const busy = useApp((s) => s.busy);
+
+  // v0.6：三个决策点之一 —— 判定依据显不显示。在设置页改，这里只读。
+  const showJudgeReason = (snapshot.settings as { review?: { showJudgeReason?: boolean } }).review?.showJudgeReason ?? true;
 
   const profile = snapshot.profiles.find((p) => p.id === snapshot.ui.activeProfileId) ?? snapshot.profiles[0];
   const job = snapshot.jobs.find((j) => j.id === snapshot.ui.activeJobId) ?? snapshot.jobs[0];
@@ -279,9 +399,15 @@ export function TrainingPage() {
                   key={item.id}
                   item={item}
                   draft={drafts[item.id] ?? item.userAnswer ?? ''}
+                  judgement={trainingJudge[item.id]}
+                  showJudgeReason={showJudgeReason}
                   onDraft={(value) => setDrafts((prev) => ({ ...prev, [item.id]: value }))}
                   onSave={(patch) => void updateTrainingItem(item.id, patch)}
                   onReview={() => void updateTrainingItem(item.id, { markReviewed: true })}
+                  onJudge={() => void judgeTraining(item.id)}
+                  onSubmitEvidence={() => void submitTrainingEvidence(item.id)}
+                  onPark={() => void parkTraining(item.id, '暂时不想再练了')}
+                  onResume={() => void updateTrainingItem(item.id, { followUpCount: item.followUpCount ?? 0 })}
                 />
               ))}
             </div>
@@ -310,19 +436,36 @@ export function TrainingPage() {
         <div className="space-y-2 px-5 py-4 text-[12px] leading-relaxed text-slate-600">
           <div className="flex gap-2">
             <Badge tone="success">做</Badge>
-            <span className="flex-1">按你这次没答上的要求出题，附自查要点与常见追问；自评分数记录下来用于回看进度。</span>
+            <span className="flex-1">
+              按你这次没答上的要求出题，附自查要点与常见追问；自评分数记录下来用于回看进度。
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <Badge tone="success">做</Badge>
+            <span className="flex-1">
+              判定「有没有答到点」—— 只看四件可核对的事：有没有说清场景、有没有讲出为什么这么做、
+              有没有数字或可核对载体、有没有覆盖自查要点。<b>不评价表达</b>：
+              条理不清、篇幅太长这些是练几次就能改的，写进能力库对任何岗位的判断都没有贡献。
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <Badge tone="success">做</Badge>
+            <span className="flex-1">把你写的这段经历补进能力库（只挂在这道题对应的技能上），这样匹配结论才会因为「练过」而变化。</span>
           </div>
           <div className="flex gap-2">
             <Badge tone="danger">不做</Badge>
             <span className="flex-1">
-              不判断你的回答对不对 —— 自评是主观的，系统不会假装能替你打分。真正的对错要靠面试反馈和实际产出。
+              不判断你的回答<b>对不对</b> —— 训练题是「你做过的事」，不存在标准答案。
+              判定问的是「你有没有把它讲成可核对的样子」，不是「答案是否正确」。
             </span>
           </div>
           <div className="flex gap-2">
-            <Badge tone="warning">注意</Badge>
-            <span className="flex-1">
-              自查要点是辅助清单，不保证覆盖完整知识体系。标注为「定制要点」的技能有针对性内容，其余用通用要点。
-            </span>
+            <Badge tone="danger">不做</Badge>
+            <span className="flex-1">不会因为「练到达标」就告诉你这个岗位可以投了 —— 那需要重跑一次匹配才能确认。</span>
+          </div>
+          <div className="flex gap-2">
+            <Badge tone="warning">关于强度</Badge>
+            <span className="flex-1">{TRAINING_EVIDENCE_WHY}</span>
           </div>
         </div>
       </Card>
@@ -339,8 +482,8 @@ export function TrainingPage() {
 
       {plan ? (
         <Banner tone="info">
-          练完之后：回到「简历匹配」重新分析一次，被判为「缺少证据」的那几条应该会跟着变化 ——
-          这就是训练是否有效的判断方式，而不是看自评分。
+          判定通过的题可以把经历补进能力库；补完之后回到「简历匹配」重新分析一次，
+          被判为「缺少证据」的那几条应该会跟着变化 —— 这就是训练是否有效的判断方式。
           <span className="ml-1 inline-block">
             <Button size="sm" onClick={() => navigate('match')}>
               去重新分析

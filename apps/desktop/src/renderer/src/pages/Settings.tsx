@@ -13,11 +13,17 @@ import {
   budgetAdvice,
   formatDateTime,
   isEnabled,
+  normalizeReviewPreferences,
+  REVIEW_LAYOUT_LABEL,
+  REVIEW_LAYOUT_WHY,
   restrictionCapabilities,
+  STALE_POLICY_LABEL,
+  STALE_POLICY_WHY,
   summarizeUsage,
   topCostAdvice,
   type AiProviderId,
   type Release,
+  type ReviewPreferences,
 } from '@aijob/core';
 import {
   Badge,
@@ -47,6 +53,10 @@ export function SettingsPage() {
   const snapshot = useApp((s) => s.snapshot);
   const runtime = useApp((s) => s.runtime);
   const updateSettings = useApp((s) => s.updateSettings);
+  const ws = useApp((s) => s.ws);
+  const updateReviewPreferences = async (patch: Partial<ReviewPreferences>) => {
+    await ws?.updateReviewPreferences(patch);
+  };
   const testConnection = useApp((s) => s.testConnection);
   const clearAll = useApp((s) => s.clearAll);
   const exportJson = useApp((s) => s.exportJson);
@@ -54,7 +64,7 @@ export function SettingsPage() {
 
   const settings = snapshot.settings;
   const [showKey, setShowKey] = useState(false);
-  const [tab, setTab] = useState<'provider' | 'usage' | 'traces' | 'version' | 'data'>('provider');
+  const [tab, setTab] = useState<'provider' | 'usage' | 'traces' | 'version' | 'data' | 'review'>('provider');
   const [budgetInput, setBudgetInput] = useState<string>(
     settings.monthlyBudgetYuan === null || settings.monthlyBudgetYuan === undefined ? '' : String(settings.monthlyBudgetYuan),
   );
@@ -65,6 +75,7 @@ export function SettingsPage() {
     [usage, settings.monthlyBudgetYuan],
   );
   const costHint = useMemo(() => topCostAdvice(usage), [usage]);
+  const review = normalizeReviewPreferences((snapshot.settings as { review?: ReviewPreferences }).review);
   const currentPricing = MODEL_PRICING.find((p) => p.match.some((m) => settings.model.toLowerCase().includes(m)));
 
   const byRelease = useMemo(() => {
@@ -92,6 +103,7 @@ export function SettingsPage() {
         {(
           [
             { id: 'provider', label: 'AI Provider' },
+            { id: 'review', label: '判断与呈现' },
             { id: 'usage', label: '用量与费用' },
             { id: 'traces', label: `调用留痕 (${snapshot.traces.length})` },
             { id: 'version', label: '版本与能力' },
@@ -532,6 +544,126 @@ export function SettingsPage() {
       ) : null}
 
       {/* ---------------- 留痕 ---------------- */}
+      {/* ------------------------------------------------------------------
+          判断与呈现（v0.6）
+
+          这一页原本不存在。开发时在这里卡过三个问题：结论什么时候算过时、
+          审核界面一屏还是逐条、判定依据要不要显示给用户。
+
+          之所以不给默认值了事，是因为这三条都不是「哪种都对」的技术选择，
+          而是价值取舍 —— 开发替用户选，等于替用户表态。
+          三条都给了默认值，且默认偏保守（少打扰、不隐藏信息）。
+      ------------------------------------------------------------------ */}
+      {tab === 'review' ? (
+        <div className="space-y-4">
+          <Card>
+            <CardHeader
+              title="问诊结论什么时候算过时"
+              subtitle="决定系统什么时候提示你「这项要不要再问一次」。已问过且仍算数的技能不会出现在待办列表里。"
+            />
+            <div className="space-y-2 px-5 py-4">
+              {(['by_change', 'by_change_and_age', 'never'] as const).map((policy) => (
+                <label
+                  key={policy}
+                  className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-slate-200 px-3 py-2.5 hover:bg-slate-50"
+                >
+                  <input
+                    type="radio"
+                    name="stalePolicy"
+                    className="mt-1"
+                    checked={review.stalePolicy === policy}
+                    onChange={() => void updateReviewPreferences({ stalePolicy: policy })}
+                  />
+                  <span className="flex-1">
+                    <span className="block text-[13px] font-medium text-slate-800">{STALE_POLICY_LABEL[policy]}</span>
+                    <span className="mt-0.5 block text-[11px] leading-relaxed text-slate-500">{STALE_POLICY_WHY[policy]}</span>
+                  </span>
+                </label>
+              ))}
+              {review.stalePolicy === 'by_change_and_age' ? (
+                <div className="mt-2 rounded-lg bg-slate-50 px-3 py-2.5">
+                  <div className="text-[12px] font-medium text-slate-700">多少天算放太久</div>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                    {[30, 60, 90, 180, 365].map((days) => (
+                      <button
+                        key={days}
+                        onClick={() => void updateReviewPreferences({ staleAfterDays: days })}
+                        className={
+                          review.staleAfterDays === days
+                            ? 'rounded-md border border-slate-800 bg-slate-800 px-2.5 py-1 text-[11px] text-white'
+                            : 'rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-600 hover:bg-slate-50'
+                        }
+                      >
+                        {days} 天
+                      </button>
+                    ))}
+                  </div>
+                  <div className="mt-1.5 text-[11px] leading-relaxed text-slate-500">
+                    时间只是提醒，不会自动改写你的档案 —— 到期了你仍然可以选择「先留着」。
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </Card>
+
+          <Card>
+            <CardHeader
+              title="回答整理的审核方式"
+              subtitle="影响你逐条确认时看到几组对照。条目数取决于模型拆分粒度，不同模型差别很大。"
+            />
+            <div className="space-y-2 px-5 py-4">
+              {(['inline', 'stepwise'] as const).map((layout) => (
+                <label
+                  key={layout}
+                  className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-slate-200 px-3 py-2.5 hover:bg-slate-50"
+                >
+                  <input
+                    type="radio"
+                    name="reviewLayout"
+                    className="mt-1"
+                    checked={review.reviewLayout === layout}
+                    onChange={() => void updateReviewPreferences({ reviewLayout: layout })}
+                  />
+                  <span className="flex-1">
+                    <span className="block text-[13px] font-medium text-slate-800">{REVIEW_LAYOUT_LABEL[layout]}</span>
+                    <span className="mt-0.5 block text-[11px] leading-relaxed text-slate-500">{REVIEW_LAYOUT_WHY[layout]}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </Card>
+
+          <Card>
+            <CardHeader title="训练判定的依据要不要显示" subtitle="判定本身永远会发生，这一项只控制解释的显隐" />
+            <div className="space-y-3 px-5 py-4">
+              <div className="flex items-start gap-3">
+                <div className="flex-1">
+                  <Toggle
+                    label="显示判定依据"
+                    hint={review.showJudgeReason ? '会列出「有没有说清场景 / 为什么这么做 / 数字载体 / 覆盖要点」四项的达成情况' : '只给结论，不给理由'}
+                    checked={review.showJudgeReason}
+                    onChange={(v) => void updateReviewPreferences({ showJudgeReason: v })}
+                  />
+                </div>
+              </div>
+              <Callout>
+                关掉之后判定照常发生，只是你不���知道它凭什么这么判。
+                这两件事不一样：「系统帮我看看这句话缺什么」是帮忙，
+                「系统给了我一个分数但不告诉我算法」是不信任。
+                所以默认打开。
+              </Callout>
+              <div className="rounded-lg bg-slate-50 px-3 py-2.5 text-[11px] leading-relaxed text-slate-600">
+                <div className="font-medium text-slate-700">判定不做什么：</div>
+                <div className="mt-1">
+                  不评价表达（条理、篇幅），不用 AI 打分，不判断你的答案对不对 ——
+                  训练题是「你做过的事」，不存在标准答案。判定只问「你有没有把它讲成可核对的样子」。
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+      ) : null}
+
       {tab === 'traces' ? (
         <div className="space-y-4">
           <Banner tone="info" title="AI 调用留痕">

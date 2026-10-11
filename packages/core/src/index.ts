@@ -24,6 +24,7 @@ export * from './domain/levels';
 export * from './domain/training';
 export * from './domain/interview-prep';
 export * from './domain/debrief';
+export * from './domain/review-preferences';
 
 // ---------------- 隐私 ----------------
 export { extractCity, redactPII } from './privacy/redactor';
@@ -97,6 +98,11 @@ export {
   deriveEvidenceFromSession,
   evaluateAssessment,
   pendingSkillsFor,
+  assessedSkillsFor,
+  assessFreshness,
+  recordDraft,
+  clearDraft,
+  replanQuestions,
   estimateSessionMinutes,
   type StartAssessmentInput,
   type PlanSessionInput,
@@ -104,17 +110,37 @@ export {
   type AnswerInput,
   type EvaluateInput,
   type EvaluateOutput,
+  type AssessmentSnapshot,
   type DerivedEvidence,
   type PendingSkill,
+  type StaleMark,
 } from './engines/skill-interview';
 export {
   buildTrainingPlan,
   answerTrainingItem,
+  parkTrainingItem,
+  carryOverAnswers,
   trainingCandidates,
   TRAINING_MAX_ITEMS,
   type BuildTrainingInput,
   type BuildTrainingOutput,
 } from './engines/training-planner';
+export {
+  judgeTrainingAnswer,
+  TRAINING_EVIDENCE_WHY,
+  type JudgeReason,
+  type TrainingJudgement,
+  type TrainingVerdict,
+} from './engines/training-judge';
+export {
+  summarizeAnswer,
+  summaryToEvidence,
+  anchorIsReal,
+  SUMMARY_DISCLAIMER,
+  type AnswerSummary,
+  type SummarizeInput,
+  type SummaryField,
+} from './engines/answer-summary';
 export {
   prepareQuestions,
   splitQuestions,
@@ -246,6 +272,7 @@ export {
 } from './engines/resume-advice';
 
 // ---------------- 存储 ----------------
+export type { StoredAssessResult } from './storage';
 export * from './storage';
 
 // ---------------- 工具 ----------------

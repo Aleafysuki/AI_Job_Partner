@@ -1,9 +1,16 @@
 import type { AiSettings, AiTrace } from '../domain/ai-trace';
 import { createDefaultAiSettings, normalizeAiSettings } from '../domain/ai-trace';
 import type { InterviewDebriefReport, InterviewDebriefSession } from '../domain/debrief';
+import type { AssessSession, SkillAssessment } from '../domain/interview';
 import type { JobRequirement } from '../domain/job';
 import type { CandidateProfile } from '../domain/profile';
+import type { StaleMark } from '../engines/skill-interview';
 import type { AnalysisReport } from '../domain/report';
+import {
+  DEFAULT_REVIEW_PREFERENCES,
+  normalizeReviewPreferences,
+  type ReviewPreferences,
+} from '../domain/review-preferences';
 import type { TrainingPlan } from '../domain/training';
 import { CURRENT_RELEASE } from '../version';
 
@@ -25,9 +32,14 @@ import { CURRENT_RELEASE } from '../version';
  * 1 → 2（v0.2 能力问诊）：新增 trainingPlans[]、profile.assessments[]、evidence.origin。
  * 2 → 3（v0.2 面试复盘）：新增 interviewSessions[]、debriefReports[]，
  *                         settings 补 transcription / capture 两组子配置。
+ * 3 → 4（v0.6 累积不丢）：新增 assessSessions[]、assessResults[]、staleMarks[]，
+ *                         settings 补 review 一组用户决策偏好。
+ *                         —— 之前问诊会话只在内存里，用户答到第 5 题关掉应用，
+ *                            前 4 题全没了（SQLite 是单表单 key 的 JSON 大字段，
+ *                            没在快照里声明就是存不了，不是忘了写）。
  * 原值（保留留痕，勿删）：export const SNAPSHOT_SCHEMA_VERSION = 2;
  */
-export const SNAPSHOT_SCHEMA_VERSION = 3;
+export const SNAPSHOT_SCHEMA_VERSION = 4;
 
 export interface WorkspaceUiState {
   activeProfileId?: string;
@@ -57,9 +69,43 @@ export interface WorkspaceSnapshot {
   interviewSessions: InterviewDebriefSession[];
   /** v0.2 追加：面试复盘报告（可重新生成，与 session 一对多保留历史） */
   debriefReports: InterviewDebriefReport[];
+  /**
+   * v0.6：进行中与已完成的能力问诊会话。
+   *
+   * **会话必须在快照里**，理由很直接：会话里存着用户逐题的答案，
+   * 而用户填这些答案花的时间是真实的。不落盘 = 崩溃/关掉即全部消失，
+   * 用户的反应就是「填了一遍还要重填」。
+   *
+   * 只存文本与题目结构，不存音频（音频走文件，见 interviewSessions 的注释）。
+   */
+  assessSessions: AssessSession[];
+  /**
+   * v0.6：问诊结论的「本次改了什么」差异视图数据。
+   *
+   * 之前 before 快照只在函数返回值里飘过 —— 关掉页面就没了，
+   * 用户回到档案页仍然看不到「这次问诊到底改了什么」。
+   */
+  assessResults: StoredAssessResult[];
+  /** v0.6：用户手动标记「这条问诊结论想重答」 */
+  staleMarks: StaleMark[];
   traces: AiTrace[];
   settings: AiSettings;
   ui: WorkspaceUiState;
+}
+
+/** 问诊差异视图需要持久化的那部分（updatedProfile 太大，不进快照） */
+export interface StoredAssessResult {
+  assessment: SkillAssessment;
+  before: {
+    existed: boolean;
+    level: string;
+    selfLevel: string;
+    evidenceCount: number;
+    summary?: string;
+  };
+  /** 这次问诊补了哪些证据的 id */
+  evidenceIds: string[];
+  createdAt: string;
 }
 
 export interface StoragePort {
@@ -83,6 +129,9 @@ export function createEmptySnapshot(): WorkspaceSnapshot {
     trainingPlans: [],
     interviewSessions: [],
     debriefReports: [],
+    assessSessions: [],
+    assessResults: [],
+    staleMarks: [],
     traces: [],
     settings: createDefaultAiSettings(),
     ui: { onboardingCompleted: false, dismissedHints: [] },
@@ -131,10 +180,26 @@ export function migrateSnapshot(raw: unknown): WorkspaceSnapshot {
       ? data.interviewSessions.map((s) => normalizeSession(s as InterviewDebriefSession))
       : [],
     debriefReports: Array.isArray(data.debriefReports) ? data.debriefReports : [],
+    assessSessions: Array.isArray(data.assessSessions)
+      ? data.assessSessions.map((s) => normalizeAssessSession(s as AssessSession))
+      : [],
+    assessResults: Array.isArray(data.assessResults) ? data.assessResults : [],
+    staleMarks: Array.isArray(data.staleMarks) ? data.staleMarks : [],
     traces: Array.isArray(data.traces) ? data.traces : [],
     // 深合并：老快照的 settings 里没有 transcription / capture，顶层展开补不上这两层
     settings: normalizeAiSettings(data.settings),
     ui: { ...empty.ui, ...(data.ui ?? {}) },
+  };
+}
+
+/** 老会话可能缺 v0.6 追加的字段（draft / replacedQuestions），补齐后再进内存 */
+function normalizeAssessSession(session: AssessSession): AssessSession {
+  return {
+    ...session,
+    answers: Array.isArray(session.answers) ? session.answers : [],
+    questions: Array.isArray(session.questions) ? session.questions : [],
+    replacedQuestions: Array.isArray(session.replacedQuestions) ? session.replacedQuestions : [],
+    draft: session.draft ?? undefined,
   };
 }
 
@@ -359,6 +424,90 @@ export class WorkspaceStore {
 
   latestDebriefReport(): InterviewDebriefReport | undefined {
     return this.snapshot.debriefReports[0];
+  }
+
+  // ---------------- 能力问诊会话（v0.6） ----------------
+
+  /**
+   * 存一份问诊会话。
+   *
+   * `persist: false` 的用途是**连续答题时先写内存、节流后写盘**：
+   * 每答一题就重写一次全量快照太重（SQLite 那边是整个 JSON 字符串）。
+   * 切页与关闭时会强制落盘。
+   */
+  async upsertAssessSession(session: AssessSession, options: { persist?: boolean } = {}): Promise<void> {
+    const assessSessions = [session, ...this.snapshot.assessSessions.filter((s) => s.id !== session.id)].slice(0, 30);
+    this.snapshot = { ...this.snapshot, assessSessions };
+    if (options.persist !== false) await this.persist();
+    this.notify();
+  }
+
+  assessSessionsFor(profileId: string): AssessSession[] {
+    return this.snapshot.assessSessions.filter((s) => s.profileId === profileId);
+  }
+
+  /** 进行中的会话（status = draft）。用于恢复「关掉应用但答案还在」。 */
+  activeAssessSession(profileId: string): AssessSession | undefined {
+    return this.snapshot.assessSessions.find((s) => s.profileId === profileId && s.status === 'draft');
+  }
+
+  async deleteAssessSession(id: string): Promise<void> {
+    this.snapshot = { ...this.snapshot, assessSessions: this.snapshot.assessSessions.filter((s) => s.id !== id) };
+    await this.persist();
+    this.notify();
+  }
+
+  /** 存一份问诊差异视图数据（before/after） */
+  async addAssessResult(result: StoredAssessResult): Promise<void> {
+    const assessResults = [result, ...this.snapshot.assessResults].slice(0, 60);
+    this.snapshot = { ...this.snapshot, assessResults };
+    await this.persist();
+    this.notify();
+  }
+
+  latestAssessResult(profileId: string): StoredAssessResult | undefined {
+    return this.snapshot.assessResults.find((r) => r.assessment.profileId === profileId);
+  }
+
+  async clearStaleMarks(profileId: string): Promise<void> {
+    this.snapshot = {
+      ...this.snapshot,
+      staleMarks: this.snapshot.staleMarks.filter((m) => m.skillName.length > 0),
+    };
+    await this.persist();
+    this.notify();
+  }
+
+  staleMarksFor(): StaleMark[] {
+    return this.snapshot.staleMarks;
+  }
+
+  /** 用户手动标「这条想重答」 */
+  async addStaleMark(mark: StaleMark): Promise<void> {
+    const staleMarks = [...this.snapshot.staleMarks.filter((m) => m.skillName !== mark.skillName), mark];
+    this.snapshot = { ...this.snapshot, staleMarks };
+    await this.persist();
+    this.notify();
+  }
+
+  async removeStaleMark(skillName: string): Promise<void> {
+    this.snapshot = { ...this.snapshot, staleMarks: this.snapshot.staleMarks.filter((m) => m.skillName !== skillName) };
+    await this.persist();
+    this.notify();
+  }
+
+  /** 三个「开发时该拍板」的决策点：用户自己在设置页决定，开发不替他选 */
+  reviewPreferences(): ReviewPreferences {
+    const raw = this.snapshot.settings as Partial<AiSettings> & { review?: Partial<ReviewPreferences> };
+    return normalizeReviewPreferences(raw?.review);
+  }
+
+  async updateReviewPreferences(patch: Partial<ReviewPreferences>): Promise<void> {
+    const settings = this.snapshot.settings as Partial<AiSettings> & { review?: Partial<ReviewPreferences> };
+    const review = normalizeReviewPreferences({ ...DEFAULT_REVIEW_PREFERENCES, ...settings?.review, ...patch });
+    this.snapshot = { ...this.snapshot, settings: { ...this.snapshot.settings, review } as AiSettings };
+    await this.persist();
+    this.notify();
   }
 
   // ---------------- AI 留痕 ----------------

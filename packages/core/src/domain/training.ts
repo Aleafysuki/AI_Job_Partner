@@ -77,7 +77,38 @@ export interface TrainingItem {
 
   userAnswer?: string;
   selfScore?: SelfScore;
-  status: 'todo' | 'answered' | 'reviewed';
+  /**
+   * v0.6：这次回答判定为通过的时间。
+   *
+   * 之前只有 `status` 一个单向状态机（todo → answered → reviewed），
+   * 没有「练到达标」的概念，也就无从判断该不该重跑匹配。
+   */
+  passedAt?: string;
+  /**
+   * v0.6：这次回答产出的证据 id（已写进能力库）。
+   *
+   * **这个字段是这个产品真闭环的关键** ——
+   * 在它出现之前，`TrainingItem` 与能力库之间没有任何连接，
+   * 用户练完的答案只是 trainingPlans 里的一段文本，
+   * 匹配结论永远不会因为「练了」而变化。训练页却写着「练完去重跑匹配」，
+   * 那是一个必然让人失望的假闭环。
+   *
+   * 与 `SkillAssessment.producedEvidenceIds` 语义一致，
+   * 两者都是「这次操作往档案里写了什么」的追溯凭据。
+   */
+  evidenceIds?: string[];
+  /** v0.6：这一题已经追问过几轮 */
+  followUpCount?: number;
+  /** v0.6：最近一次判定没过的原因（给用户看「还差哪」而不是让他猜） */
+  lastJudgeHeadline?: string;
+  /**
+   * v0.6：用户选择「先放着」。
+   *
+   * 没练过的题不能删 —— 删了就等于告诉用户「你写的这段没用」，
+   * 那正是最不该让他感到的。所以只标一个状态和原因，答案本身留着。
+   */
+  parked?: { reason: string; at: string };
+  status: 'todo' | 'answered' | 'reviewed' | 'passed' | 'parked';
   updatedAt: string;
 }
 
@@ -95,6 +126,10 @@ export interface TrainingPlan {
     todo: number;
     answered: number;
     reviewed: number;
+    /** v0.6：判定通过的训练题数 */
+    passed: number;
+    /** v0.6：用户选择「先放着」的题数 */
+    parked: number;
     /** 自评平均分（0-3），没有作答时为 null */
     averageScore: number | null;
   };
@@ -109,16 +144,30 @@ export function computePlanStats(items: TrainingItem[]): TrainingPlan['stats'] {
   const todo = items.filter((i) => i.status === 'todo').length;
   const answered = items.filter((i) => i.status === 'answered').length;
   const reviewed = items.filter((i) => i.status === 'reviewed').length;
+  const passed = items.filter((i) => i.status === 'passed').length;
+  const parked = items.filter((i) => i.status === 'parked').length;
   const scored = items.filter((i) => typeof i.selfScore === 'number');
   return {
     total: items.length,
     todo,
     answered,
     reviewed,
+    passed,
+    parked,
     averageScore: scored.length > 0
       ? Math.round((scored.reduce((sum, i) => sum + (i.selfScore as number), 0) / scored.length) * 10) / 10
       : null,
   };
+}
+
+/**
+ * 新一次作答是否让之前「达标」的题又变回未达标。
+ *
+ * 为什么要重新判定：用户达标之后可能又改了答案。改了答案就该重新算，
+ * 否则会出现「界面上显示通过，但档案里存的是他改之前那段内容」的错位。
+ */
+export function answerInvalidatesPass(item: TrainingItem): boolean {
+  return item.status === 'passed' && !item.passedAt;
 }
 
 export const SELF_SCORE_OPTIONS: Array<{ value: SelfScore; label: string }> = [

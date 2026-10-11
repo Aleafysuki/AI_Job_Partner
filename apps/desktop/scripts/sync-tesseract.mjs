@@ -34,9 +34,20 @@ const TARGETS = [
     label: 'Android 构建产物',
   },
   {
-    /** 桌面端的 vite public 目录（让 dev / 预览也能用） */
-    dest: join(ROOT, 'apps/desktop/public/tesseract'),
-    label: '桌面 public',
+    /**
+     * v0.6 修正：这里原来写的是 `apps/desktop/public/tesseract`，
+     * 那个目录**根本不会被 vite 复制** ——
+     * `electron.vite.config.ts` 里 renderer 的 `root` 指向 `src/renderer`，
+     * 所以 vite 的 publicDir 是 `src/renderer/public`，而不是包根的 `public/`。
+     *
+     * 后果：OCR 资源只落在了一个没人读的地方。
+     * 开发时看不出来（Electron 能读到磁盘上的任意路径），
+     * 但打包后的 `out/renderer/tesseract` 是空的 ——
+     * 症状是点「识别」报一条与「文件缺失」毫无关系的 SyntaxError
+     * （同worker 脚本那个坑：报的是加载方式不对，不是文件不在）。
+     */
+    dest: join(ROOT, 'apps/desktop/src/renderer/public/tesseract'),
+    label: '桌面 renderer public（vite 会复制到 out/renderer）',
   },
 ];
 
@@ -142,9 +153,17 @@ for (const t of TARGETS) {
   }
 }
 
+// _deprecated（v0.6 修正前的写法）：写进包根的 public/ —— vite 不会复制它
+//   { dest: join(ROOT, 'apps/desktop/public/tesseract'), label: '桌面 public' },
+// 保留留痕勿删。这个错的特点是「开发完全正常、打包后静默失败」。
+
 console.log(
   `OCR 资源就绪${total > 0 ? `（复制 ${total} 个）` : '（无变化）'}。` +
     '不联网即可识别 —— 这一点是产品的第一承诺，不能靠运行时下载。',
+);
+console.log(
+  '顺序提醒：桌面端跑完 ocr:sync 还要再跑一次 npm run build，' +
+    '否则 out/renderer/tesseract 还是空的（vite 只在构建时复制 public）。',
 );
 /*
  * 顺序提醒（写在文件末尾，因为这是最容易踩的地方）：

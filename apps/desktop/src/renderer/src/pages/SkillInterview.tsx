@@ -4,13 +4,20 @@ import {
   SKILL_LEVEL_LABEL,
   SKILL_LEVEL_MEANING,
   SKILL_LEVEL_ORDER,
+  CAPABILITY_LEVELS,
   EVIDENCE_ORIGIN_LABEL,
+  SUMMARY_DISCLAIMER,
+  assessedSkillsFor,
   estimateSessionMinutes,
+  formatDateTime,
   pendingSkillsFor,
   nextQuestion,
   plannedCapabilities,
   type AssessLayer,
+  type CapabilityLevel,
+  type ReviewPreferences,
   type SkillLevel,
+  type SummaryField,
 } from '@aijob/core';
 import {
   Badge,
@@ -19,6 +26,7 @@ import {
   Callout,
   Card,
   CardHeader,
+  Collapsible,
   ComingSoonPanel,
   EmptyState,
   Field,
@@ -61,6 +69,80 @@ const LEVEL_TONE: Record<SkillLevel, string> = {
   expert: 'bg-emerald-100 text-emerald-800 border-emerald-300',
 };
 
+/**
+ * 一条待确认的整理结果。
+ *
+ * 布局刻意做成「整理后 / 你的原话」上下对照而不是并排两栏：
+ * 393px 宽的移动端放不下并排，而上下对照恰好能把「哪句是我说的」指出来。
+ * 设置页选「全部列出来」时 label 与原文同区展开，选「一次看一条」时默认只显示一行。
+ */
+function SummaryRow({
+  label,
+  field,
+  inline,
+  onEdit,
+  onReject,
+  onRestore,
+}: {
+  label: string;
+  field: SummaryField;
+  inline: boolean;
+  onEdit: (value: string) => void;
+  onReject: () => void;
+  onRestore: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(field.value);
+
+  if (field.rejected) {
+    return (
+      <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+        <div className="flex items-center gap-2">
+          <Badge tone="muted">{label}</Badge>
+          <span className="flex-1 text-[11px] text-slate-500">已删除，不会写进档案</span>
+          <Button size="sm" variant="ghost" onClick={onRestore}>
+            恢复
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn('rounded-lg border px-3 py-2', field.edited ? 'border-amber-200 bg-amber-50' : 'border-slate-200')}>
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge tone="neutral">{label}</Badge>
+        {field.edited ? <Badge tone="warning">你改过了</Badge> : null}
+        <span className="flex-1" />
+        <Button size="sm" variant="ghost" onClick={() => setEditing((v) => !v)}>
+          {editing ? '收起' : '改写'}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onReject}>
+          删除
+        </Button>
+      </div>
+
+      {editing ? (
+        <div className="mt-2 space-y-2">
+          <TextArea rows={2} value={value} onChange={(e) => setValue(e.target.value)} />
+          <Button size="sm" variant="primary" onClick={() => { onEdit(value); setEditing(false); }}>
+            用我改的
+          </Button>
+        </div>
+      ) : (
+        <p className="mt-1.5 whitespace-pre-wrap text-[12px] leading-relaxed text-slate-800">{field.value}</p>
+      )}
+
+      {/* anchor 是这套机制的命门：没有它用户无法验证「这句是我说的吗」 */}
+      <div className="mt-2 rounded-md bg-slate-50 px-2.5 py-1.5">
+        <div className="text-[10px] text-slate-400">你原话里是这样说的</div>
+        <p className="mt-0.5 text-[11px] leading-relaxed text-slate-600">{field.anchor}</p>
+      </div>
+      {inline && !editing ? null : null}
+    </div>
+  );
+}
+
 function SignalBars({ signals }: { signals: Record<string, number> }) {
   return (
     <div className="grid gap-2 sm:grid-cols-2">
@@ -95,11 +177,20 @@ export function SkillInterviewPage() {
   const session = useApp((s) => s.assessSession);
   const result = useApp((s) => s.assessResult);
   const meta = useApp((s) => s.assessMeta);
+  const resumed = useApp((s) => s.assessResumed);
+  const summary = useApp((s) => s.assessSummary);
   const startAssess = useApp((s) => s.startAssess);
   const answerAssess = useApp((s) => s.answerAssess);
+  const draftAssess = useApp((s) => s.draftAssess);
   const finishAssess = useApp((s) => s.finishAssess);
   const cancelAssess = useApp((s) => s.cancelAssess);
   const replanAssess = useApp((s) => s.replanAssess);
+  const resumeAssess = useApp((s) => s.resumeAssess);
+  const summarizeAssess = useApp((s) => s.summarizeAssess);
+  const editSummaryField = useApp((s) => s.editSummaryField);
+  const applySummary = useApp((s) => s.applySummary);
+  const markStale = useApp((s) => s.markStale);
+  const unmarkStale = useApp((s) => s.unmarkStale);
   const navigate = useApp((s) => s.navigate);
   const busy = useApp((s) => s.busy);
 
@@ -117,17 +208,52 @@ export function SkillInterviewPage() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [manualSkill, setManualSkill] = useState('');
 
-  const pending = useMemo(() => (profile ? pendingSkillsFor(profile, job ?? null) : []), [profile, job]);
+  // v0.6：推荐列表读设置里的偏好（结论何时算过时），并把「已问过」交给只读区
+  const prefs = (snapshot.settings as { review?: ReviewPreferences }).review;
+  const pending = useMemo(
+    () => (profile ? pendingSkillsFor(profile, job ?? null, { prefs, marks: snapshot.staleMarks }) : []),
+    [profile, job, prefs, snapshot.staleMarks],
+  );
+  const assessed = useMemo(
+    () => (profile ? assessedSkillsFor(profile, job ?? null, { prefs, marks: snapshot.staleMarks }) : []),
+    [profile, job, prefs, snapshot.staleMarks],
+  );
   const current = session ? nextQuestion(session) : null;
   const answeredCount = session ? session.answers.length : 0;
 
-  // 换题时清空作答草稿
+  // 换题时清空作答草稿；v0.6 起草稿会写进会话，切页回来也还在
   useEffect(() => {
-    setText('');
-    setChoiceIndex(null);
-    setPickedChoice(null);
-    setNeedsDetail(false);
-  }, [current?.question.id]);
+    if (!session) {
+      setText('');
+      setChoiceIndex(null);
+      setPickedChoice(null);
+      setNeedsDetail(false);
+      return;
+    }
+    const draft = session.draft;
+    if (draft && draft.questionId === current?.question.id) {
+      setText(draft.text);
+      setPickedChoice(draft.pickedChoice ?? null);
+      setNeedsDetail(draft.needsDetail ?? false);
+      setChoiceIndex(null);
+    } else {
+      setText('');
+      setChoiceIndex(null);
+      setPickedChoice(null);
+      setNeedsDetail(false);
+    }
+  }, [current?.question.id, session?.id, session?.draft?.questionId]);
+
+  // 草稿随输入写进会话 —— 这是「切页不丢正在写的那一题」的全部机制
+  useEffect(() => {
+    if (!session || !current) return;
+    draftAssess({
+      questionId: current.question.id,
+      text,
+      pickedChoice: pickedChoice ?? undefined,
+      needsDetail,
+    });
+  }, [text, pickedChoice, needsDetail, session?.id, current?.question.id]);
 
   const assessedNames = new Set((profile?.assessments ?? []).map((a) => a.skillName));
   const upcoming = plannedCapabilities().filter((c) => c.id.startsWith('interview.'));
@@ -143,7 +269,11 @@ export function SkillInterviewPage() {
 
   // ---------------- 结果页 ----------------
   if (result) {
-    const { assessment, evidence } = result;
+    const { assessment, evidence, before } = result;
+    // v0.6：before/after 对比。之前界面上完全没有这个视图，
+    // 数据层也没有 —— EvaluateOutput 里没有旧等级，用户只能自己跑去档案页逐条比。
+    const levelChanged = before.existed;
+    const evidenceDelta = evidence ? 1 : 0;
     return (
       <div className="space-y-5">
         <header className="flex flex-wrap items-start justify-between gap-4">
@@ -162,6 +292,36 @@ export function SkillInterviewPage() {
             </Button>
           </div>
         </header>
+
+        {/* v0.6：这次问诊到底改了什么 */}
+        <Card>
+          <CardHeader
+            title="这次问诊改了什么"
+            subtitle={levelChanged ? '左边是问之前的样子，右边是现在档案里的样子' : '这是第一次问这项能力，之前档案里没有相关记录'}
+          />
+          <div className="grid gap-3 px-5 py-4 sm:grid-cols-2">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="text-[11px] font-medium text-slate-500">问之前</div>
+              <div className="mt-1 text-[13px] font-medium text-slate-700">
+                {levelChanged ? CAPABILITY_LEVELS[before.level as CapabilityLevel]?.label ?? before.level : '档案里没有这一项'}
+              </div>
+              <div className="mt-1 text-[11px] leading-relaxed text-slate-500">
+                {levelChanged
+                  ? `自评「${before.selfLevel}」· ${before.evidenceCount} 条证据${before.summary ? `· ${before.summary}` : ''}`
+                  : '系统之前从未问过这项，也没有把它算进能力库'}
+              </div>
+            </div>
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
+              <div className="text-[11px] font-medium text-emerald-700">现在</div>
+              <div className="mt-1 text-[13px] font-medium text-emerald-900">
+                {SKILL_LEVEL_LABEL[assessment.level]}
+              </div>
+              <div className="mt-1 text-[11px] leading-relaxed text-emerald-700">
+                {evidenceDelta > 0 ? `补了 1 条证据，共 ${before.evidenceCount + evidenceDelta} 条` : `证据条数没有变化（${before.evidenceCount} 条）`}
+              </div>
+            </div>
+          </div>
+        </Card>
 
         <Card>
           <div className="px-5 py-4">
@@ -574,16 +734,100 @@ export function SkillInterviewPage() {
             <div className="px-5 py-5 text-center">
               <div className="text-[13px] font-medium text-slate-700">所有问题都答完了</div>
               <p className="mt-1 text-xs text-slate-500">
-                系统会按你的回答算出掌握程度，并把其中具体的部分转成一条证据补充进能力库。
+                下一步有两条路，可以选：先让系统把这段话整理成能写进档案的条目（逐条给你确认），
+                或者直接生成掌握程度结论。
               </p>
-              <div className="mt-4">
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                <Button variant="secondary" size="lg" loading={busy === 'assess'} onClick={() => void summarizeAssess()}>
+                  先整理成档案条目
+                </Button>
                 <Button variant="primary" size="lg" loading={busy === 'assess'} onClick={() => void finishAssess()}>
-                  生成问诊结论
+                  直接生成问诊结论
                 </Button>
               </div>
+              <p className="mt-3 text-[11px] leading-relaxed text-slate-400">
+                两条路都写进同一份能力库。选哪条都不影响掌握程度的判定 —— 那是按你写的原话算的，不看整理结果。
+              </p>
             </div>
           </Card>
         )}
+
+        {/* v0.6：AI 整理 → 用户逐条审核 → 写进档案。
+            这一屏是这次需求的核心：「希望把回答交由 AI 总结并填补到个人档案」，
+            但绝不能自动写 —— 每一句都要能点回看原话，用户说不对就改或删，
+            「全部拒绝」是和「全部接受」同级的正常选项。 */}
+        {summary ? (
+          <Card className="border-indigo-200">
+            <CardHeader
+              title="逐条确认：这几条会写进你的能力库"
+              subtitle={summary.engine === 'ai' ? '由模型整理，每句都能对照你的原话' : '按本地规则原样保留你的说法'}
+            />
+            <div className="space-y-3 px-5 py-4">
+              <div className="rounded-lg bg-indigo-50 px-3 py-2 text-[11px] leading-relaxed text-indigo-900">
+                {SUMMARY_DISCLAIMER}
+              </div>
+
+              {summary.usable.length === 0 ? (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] leading-relaxed text-slate-600">
+                  没有可写入的内容 —— 至少要回答「在什么场景下用过它」这一题。
+                  你可以只生成掌握程度结论，不往档案里写任何文字。
+                </div>
+              ) : null}
+
+              {(
+                [
+                  ['scenario', '场景'],
+                  ['approach', '做法与遇到的问题'],
+                  ['outcome', '结果'],
+                  ['headline', '一句话概述'],
+                ] as const
+              ).map(([key, label]) => {
+                const field = summary[key];
+                if (!field) return null;
+                return (
+                  <SummaryRow
+                    key={key}
+                    label={label}
+                    field={field}
+                    inline={prefs?.reviewLayout !== 'inline'}
+                    onEdit={(value) => editSummaryField(key, { value })}
+                    onReject={() => editSummaryField(key, null)}
+                    onRestore={() => editSummaryField(key, { value: field.value, edited: false })}
+                  />
+                );
+              })}
+
+              {summary.dropped.length > 0 ? (
+                <Collapsible title={`系统没有采用的内容（${summary.dropped.length}）`} defaultOpen>
+                  <ul className="space-y-1">
+                    {summary.dropped.map((d, i) => (
+                      <li key={`d${i}`} className="text-[11px] leading-relaxed text-amber-700">
+                        · {d.field}：{d.reason}
+                      </li>
+                    ))}
+                  </ul>
+                </Collapsible>
+              ) : null}
+
+              <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+                <Button variant="primary" loading={busy === 'assess'} onClick={() => void applySummary()}>
+                  {summary.usable.filter((f) => !f.rejected).length > 0 ? '按确认的内容写入档案' : '不写入任何内容'}
+                </Button>
+                <Button variant="ghost" onClick={() => void finishAssess()}>
+                  先不写，只要掌握程度
+                </Button>
+                <span className="flex-1" />
+                <Button variant="ghost" size="sm" onClick={() => editSummaryField('scenario', null)}>
+                  全部拒绝
+                </Button>
+              </div>
+              <div className="text-[11px] leading-relaxed text-slate-500">
+                写入后来源标为「能力问诊」、强度封顶为「中」—— 因为这是你自己的自述，
+                没有外部可核对物。练到会讲不等于真的做过。
+              </div>
+            </div>
+          </Card>
+        ) : null}
 
         {answeredList.length > 0 ? (
           <Card>
@@ -695,24 +939,65 @@ export function SkillInterviewPage() {
                         <Badge tone={item.importance === 'high' ? 'danger' : item.importance === 'medium' ? 'warning' : 'muted'}>
                           重要度 {item.importance === 'high' ? '高' : item.importance === 'medium' ? '中' : '低'}
                         </Badge>
-                        {assessedNames.has(item.skillName) ? <Badge tone="accent">已问过</Badge> : null}
+                        {/* v0.6：stale 才显示，且要说清为什么过期、上一��是什么 */}
+                        {item.state === 'stale' ? (
+                          <Badge tone="warning">
+                            上次是「{item.previousLevel}」，{item.staleReason}
+                          </Badge>
+                        ) : null}
                         {item.requirementCount > 0 ? <Badge tone="muted">被 {item.requirementCount} 条要求提到</Badge> : null}
                       </div>
                       <p className="mt-1 text-[11px] leading-relaxed text-slate-500">{item.reason}</p>
                     </div>
-<Button size="sm" variant="primary" loading={busy === 'assess'} onClick={() => void startAssess(item.skillName, compact)}>
-                开始问诊
-              </Button>
+                    <Button size="sm" variant="primary" loading={busy === 'assess'} onClick={() => void startAssess(item.skillName, compact)}>
+                      {item.state === 'stale' ? '重答一次' : '开始问诊'}
+                    </Button>
                   </div>
                 </Card>
               ))}
             </div>
           )}
+
+          {/* v0.6 新增：已问过且结论仍然生效的技能走只读区。
+              之前它们被 pendingSkillsFor 排到列表末尾（priority +100），
+              于是用户看到的是一个仍然可点的「开始问诊」—— 数据没丢，但观感是「要求重填」。
+              现在它们不再出现在待办里，改成展示结论 + 给「重问 / 先留着」。 */}
+          {assessed.length > 0 ? (
+            <div className="space-y-2">
+              <SectionTitle
+                title={`已问诊过、结论仍然算数（${assessed.length}）`}
+                description="这些不用再答一遍。只有当你觉得答案过时了，或者主动标了「想重答」，它们才会回到上面的待办列表。"
+              />
+              {assessed.map((item) => (
+                <Card key={item.skillName}>
+                  <div className="flex flex-wrap items-center gap-3 px-4 py-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[13px] font-medium text-slate-800">{item.skillName}</span>
+                        <Badge tone="accent">{SKILL_LEVEL_LABEL[item.level]}</Badge>
+                        <Badge tone="muted">问于 {formatDateTime(item.createdAt)}</Badge>
+                        {item.evidenceCount > 0 ? <Badge tone="info">{item.evidenceCount} 条证据</Badge> : null}
+                      </div>
+                      <p className="mt-1 text-[11px] leading-relaxed text-slate-500">{item.summary}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      <Button size="sm" onClick={() => void markStale(item.skillName, '我觉得上次答得不准')}>
+                        想重答
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => void startAssess(item.skillName, compact)}>
+                        重新问一遍
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         <div className="space-y-4">
           <Card>
-            <CardHeader title="已问诊过的技能" subtitle={`${(profile.assessments ?? []).length} 项`} />
+            <CardHeader title="全部问诊记录" subtitle={`${(profile.assessments ?? []).length} 项（含已过时的）`} />
             <div className="space-y-2 px-5 py-4">
               {(profile.assessments ?? []).length === 0 ? (
                 <p className="text-[12px] text-slate-500">还没有问诊记录。</p>

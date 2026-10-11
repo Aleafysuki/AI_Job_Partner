@@ -59,6 +59,16 @@ function assessmentOf(profile: CandidateProfile, skillName: string): SkillLevel 
   return hit?.level ?? null;
 }
 
+/**
+ * v0.6：查这条结论有没有被用户自己标成「想重答」。
+ *
+ * 为什么要在这里显示：标记之后，问诊页会把这一项挪回待办列表并显示上次等级。
+ * 如果只在问诊页能看到这个标记，档案这边就会显得「我明明标过了，怎么没反应」。
+ */
+function staleMarkOf(marks: readonly { skillName: string }[] | undefined, skillName: string): boolean {
+  return (marks ?? []).some((m) => m.skillName === skillName);
+}
+
 type Tab = 'skills' | 'evidence' | 'assess' | 'projects' | 'experiences' | 'education' | 'proven' | 'privacy';
 
 const TABS: Array<{ id: Tab; label: string }> = [
@@ -113,6 +123,16 @@ export function ProfilePage() {
   const lastMergeReport = useApp((s) => s.lastMergeReport);
   const dismissMergeReport = useApp((s) => s.dismissMergeReport);
   const navigate = useApp((s) => s.navigate);
+  /**
+   * v0.6：问诊结论的「改口」入口。
+   *
+   * 之前这一区完全只读（`Profile.tsx:648-686`）—— 用户发现上次答得不准，
+   * 唯一的办法是去问诊页重新找一遍技能，或者删掉技能重来一遍。
+   * 「删掉重来」会连带删掉这一项累计的证据，那是拿用户填过的东西换一次重答。
+   */
+  const startAssess = useApp((s) => s.startAssess);
+  const markStale = useApp((s) => s.markStale);
+  const unmarkStale = useApp((s) => s.unmarkStale);
 
   const profile = snapshot.profiles.find((p) => p.id === snapshot.ui.activeProfileId) ?? snapshot.profiles[0];
   const [tab, setTab] = useState<Tab>('skills');
@@ -653,6 +673,9 @@ export function ProfilePage() {
                     <Badge tone="accent">{SKILL_LEVEL_LABEL[item.level]}</Badge>
                     <Badge tone="muted">置信度 {item.confidence === 'high' ? '高' : item.confidence === 'medium' ? '中' : '低'}</Badge>
                     {item.jobTitle ? <Badge tone="muted">问于 {item.jobTitle}</Badge> : null}
+                    {staleMarkOf(snapshot.staleMarks, item.skillName) ? (
+                      <Badge tone="warning">已标为想重答</Badge>
+                    ) : null}
                     <span className="flex-1" />
                     <span className="text-[10px] text-slate-400">{formatDate(item.createdAt)}</span>
                   </div>
@@ -663,6 +686,31 @@ export function ProfilePage() {
                     <Badge tone="muted">产出 {item.signals.output}/3</Badge>
                     <Badge tone="muted">边界 {item.signals.selfAwareness}/1</Badge>
                     {item.producedEvidenceIds.length > 0 ? <Badge tone="success">补充了证据</Badge> : <Badge tone="muted">未产出证据</Badge>}
+                  </div>
+                  {/* v0.6 1-E：结论不再只读。重答是覆盖写，但上一次答过的事实会留在证据里。 */}
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    {staleMarkOf(snapshot.staleMarks, item.skillName) ? (
+                      <Button size="sm" variant="ghost" onClick={() => void unmarkStale(item.skillName)}>
+                        取消重答标记
+                      </Button>
+                    ) : (
+                      <Button size="sm" onClick={() => void markStale(item.skillName, '我在档案里看着觉得上次答得不准')}>
+                        想重答
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        navigate('interview');
+                        void startAssess(item.skillName);
+                      }}
+                    >
+                      重新问一遍
+                    </Button>
+                    <span className="text-[10px] leading-relaxed text-slate-400">
+                      重答会覆盖这一项的掌握程度，之前补过的证据会保留。
+                    </span>
                   </div>
                   <div className="mt-2 space-y-2">
                     <Collapsible title="下一步与缺口" defaultOpen={item.gaps.length > 0}>

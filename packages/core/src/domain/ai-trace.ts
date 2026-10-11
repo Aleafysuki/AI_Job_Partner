@@ -37,6 +37,14 @@ export type AiPurpose =
   | 'interview_prep'
   | 'training_plan'
   | 'minimum_candidate'
+  /**
+   * v0.6 追加：把用户口述的回答整理成档案条目。
+   *
+   * 单独一个用途而不是复用 skill_assessment：
+   * skill_assessment 是「读完给等级」，这一条是「读完给一段可写进档案的文字」，
+   * 后者每个字段都要带 anchor（用户原话出处），校验方式完全不同。
+   */
+  | 'answer_summary'
   // ---- v0.2 追加：面试复盘链路 ----
   | 'interview_transcribe'
   | 'interview_debrief_evidence'
@@ -53,6 +61,7 @@ export const AI_PURPOSE_LABEL: Record<AiPurpose, string> = {
   interview_prep: '面试问题 → 回答结构建议',
   training_plan: '薄弱项 → 训练计划',
   minimum_candidate: '最低候选人画像（v0.3）',
+  answer_summary: '口述回答 → 档案条目（带原话出处）',
   interview_transcribe: '面试录音 → 文字转写',
   interview_debrief_evidence: '转写 → 原子事实抽取',
   interview_debrief_analysis: '原子事实 → 逐维度分析',

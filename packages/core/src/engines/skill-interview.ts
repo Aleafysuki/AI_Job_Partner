@@ -18,6 +18,7 @@ import {
 } from '../domain/interview';
 import type { JobRequirement } from '../domain/job';
 import type { CandidateProfile, SkillItem } from '../domain/profile';
+import { DEFAULT_REVIEW_PREFERENCES, type ReviewPreferences } from '../domain/review-preferences';
 import {
   ASK_SHAPE_LABEL,
   askShapeOf,
@@ -29,6 +30,8 @@ import {
 import { buildQuestions, estimateMinutes } from '../nlp/skill-questions';
 import { resolveSkill, textMentionsSkill } from '../nlp/skills';
 import { finalizeProfile } from './profile-builder';
+import { evidenceKey } from './profile-merge';
+import { resolveCapabilityLevel, type CapabilityLevel } from '../domain/levels';
 import { extractLinks, extractMetrics, matchDateRange } from '../parsers/resume-structure';
 import { newId, truncate, unique } from '../utils/text';
 
@@ -377,7 +380,77 @@ export function recordAnswer(session: AssessSession, input: AnswerInput): Assess
   };
   const answers = [...session.answers.filter((a) => a.questionId !== question.id), answer];
   const answeredAll = session.questions.every((q) => answers.some((a) => a.questionId === q.id));
-  return { ...session, answers, status: answeredAll ? 'completed' : 'draft' };
+  // 答案已经落到 answers 里，草稿就没用了 —— 不清掉的话下次进来会看到
+  // 「这一题你已经答了，但输入框里还留着上一段文字」的怪状态
+  return { ...session, answers, status: answeredAll ? 'completed' : 'draft', draft: undefined };
+}
+
+/** 记录草稿（不提交）。切页时靠它保住正在写的那一题。 */
+export function recordDraft(session: AssessSession, draft: AssessSession['draft']): AssessSession {
+  if (!draft) return session;
+  return { ...session, draft };
+}
+
+/** 清掉草稿（「下一题」/ 放弃时用） */
+export function clearDraft(session: AssessSession): AssessSession {
+  if (!session.draft) return session;
+  return { ...session, draft: undefined };
+}
+
+/**
+ * 换一套未答的题 —— **保留已答的题与答案**。
+ *
+ * v0.6 之前这里叫 `replanAssess`，UI 上的文案是「换一套问题」，
+ * 实际实现是调 `startAssess` 重开一个会话，于是**已答的全部题目被清空**。
+ * 这是全项目唯一一处「用户点一个看起来无害的按钮就丢数据」的地方，
+ * 而它恰好在答题页顶部最容易点到。
+ *
+ * 现在的行为：
+ *   - 已答的题与答案原样保留（它们已经产生了信息，不能因为换题而消失）
+ *   - 只对**未答的题**换一批新的
+ *   - 被换掉的题存进 `replacedQuestions`，界面上要能看见「这题你不用再答了」
+ *   - 新题库也用完了 → 明确告知，而不是静默什么都不发生
+ *
+ * 换不到新题时返回 `null`，让界面如实说「没有更多题可以换了」。
+ */
+export function replanQuestions(
+  session: AssessSession,
+  options: { max?: number; profile?: CandidateProfile; compact?: boolean } = {},
+): AssessSession | null {
+  const max = options.max ?? session.questions.length;
+  const answeredIds = new Set(session.answers.map((a) => a.questionId));
+  const pending = session.questions.filter((q) => !answeredIds.has(q.id));
+
+  // 全部答完就没有「换题」这件事了
+  if (pending.length === 0) return null;
+
+  const def = resolveSkill(session.skillName);
+  const skillName = def?.name ?? session.skillName;
+  const shape = askShapeOf(skillName, def?.kind ?? skillKindHint(session.skillName));
+
+  // 仍然挂上档案候选，让换题后的题目一样能从用户写过的东西里挑
+  const seeds = options.profile
+    ? seedsFromEvidence(
+        options.profile.evidence.map((e) => ({ id: e.id, title: e.title, content: e.content, skills: e.skills })),
+        skillName,
+        shape,
+      )
+    : [];
+
+  const fresh = buildQuestions(skillName, { compact: options.compact, origin: 'rule' })
+    .filter((q) => !answeredIds.has(q.id) && !session.replacedQuestions?.some((r) => r.id === q.id))
+    .slice(0, max);
+
+  if (fresh.length === 0) return null;
+
+  const replaced: AssessSession['replacedQuestions'] = [...(session.replacedQuestions ?? []), ...pending];
+  return {
+    ...session,
+    questions: [...session.questions.filter((q) => answeredIds.has(q.id)), ...attachSuggestions(fresh, seeds)],
+    replacedQuestions: replaced,
+    draft: undefined,
+    status: 'draft',
+  };
 }
 
 /** 当前应该回答哪一题（UI 用它做单题流式问答） */
@@ -494,6 +567,35 @@ export function deriveEvidenceFromSession(session: AssessSession): DerivedEviden
 // ---------------------------------------------------------------------------
 // 评估
 // ---------------------------------------------------------------------------
+/**
+ * 合并一条新产出的问诊证据。
+ *
+ * 复用 `profile-merge.ts` 的 `evidenceKey`（kind + 归一化标题 + 内容前 60 字）——
+ * 之前这里���是裸数组拼接，导致「同一个技能问三次」在档案里留下三条一模一样的证据。
+ * 这不只是难看：档案页的「N 条证据」会被撑大，匹配引擎也会把它们当成三条独立支撑。
+ *
+ * 原写法保留在下方 `_deprecated` 注释里，便于日后核对口径。
+ */
+function mergeQaEvidence(
+  existing: CandidateEvidence[],
+  incoming: CandidateEvidence | null,
+): CandidateEvidence[] {
+  if (!incoming) return existing;
+  const key = evidenceKey(incoming);
+  const hit = existing.findIndex((e) => evidenceKey(e) === key);
+  if (hit < 0) return [...existing, incoming];
+  // 保留旧那条（id 被技能 evidenceIds 引用着，换 id 会让引用失效），只更新内容
+  const next = existing.slice();
+  next[hit] = { ...next[hit], content: incoming.content, updatedAt: incoming.updatedAt };
+  return next;
+}
+
+/** _deprecated：v0.6 之前的写法（裸拼接），保留留痕勿删
+ * const evidence = derived.evidence ? [...profile.evidence, derived.evidence] : profile.evidence;
+ */
+function unusedEvidenceKeyMarker() {
+  return evidenceKey;
+}
 
 export interface EvaluateInput {
   session: AssessSession;
@@ -510,6 +612,29 @@ export interface EvaluateOutput {
   updatedProfile: CandidateProfile;
   trace: AiTrace | null;
   warnings: string[];
+  /**
+   * v0.6：这次问诊之前的样子。
+   *
+   * 为什么必须显式存下来：`SkillAssessment` 是**覆盖式**写入的
+   * （去重键是 skillName，后一次覆盖前一次），所以评估完成之后再回头查，
+   * 旧等级已经找不回来了 —— 于是界面上没法回答「这次问诊到底改了什么」，
+   * 用户只能自己跑去档案页逐条对比。before/after 对比视图依赖这个字段。
+   */
+  before: AssessmentSnapshot;
+}
+
+/** 档案里某项能力的「当前样子」，用于 before/after 对比 */
+export interface AssessmentSnapshot {
+  /** 之前有没有问过这个技能 */
+  existed: boolean;
+  /** 之前的综合能力等级（证据与问诊取较低者），之前没有任何数据时为 'unverified' */
+  level: CapabilityLevel;
+  /** 之前的自评等级 */
+  selfLevel: SkillItem['selfLevel'];
+  /** 之前挂在该技能上的证据条数 */
+  evidenceCount: number;
+  /** 之前的问诊结论摘要 */
+  summary?: string;
 }
 
 function buildSummary(level: SkillLevel, skillName: string, signals: AssessmentSignals): string {
@@ -669,7 +794,12 @@ export async function evaluateAssessment(input: EvaluateInput): Promise<Evaluate
   }
 
   const def = resolveSkill(session.skillName);
-  const evidence = derived.evidence ? [...profile.evidence, derived.evidence] : profile.evidence;
+
+  // v0.6 证据去重：原来是裸数组拼接，于是同一个技能问 N 次就会堆 N 条
+  // title 完全相同的 qa 证据，虚高 qaEvidenceCount。问诊证据走
+  // 与简历导入同一条去重键（kind|title|content 前 60 字），
+  // 同一条经历只留一份，不同经历才会并存。
+  const evidence = mergeQaEvidence(profile.evidence, derived.evidence);
 
   // ---- 等级闸门：单次问诊不能把技能判成「可讲清取舍」 ----
   // 「能讲清取舍」的前提是多场景使用，这一点不可能从一次问答里得到。
@@ -715,6 +845,21 @@ export async function evaluateAssessment(input: EvaluateInput): Promise<Evaluate
   };
 
   // ---- 并入能力库（跨岗位保留：只增量，不覆盖既有证据与技能） ----
+  // v0.6：先取 before 快照。必须在写档案之前取 —— 结论是覆盖式写入的，
+  // 写完就再也回不到旧状态了。
+  const before: AssessmentSnapshot = (() => {
+    const prevAssessment = (profile.assessments ?? []).find((a) => a.skillName === session.skillName);
+    const prevSkill = profile.skills.find((s) => s.name === session.skillName);
+    const prevEvidenceIds = prevSkill?.evidenceIds ?? [];
+    return {
+      existed: Boolean(prevAssessment),
+      level: resolveCapabilityLevel(prevSkill?.derivedStrength ?? 'none', prevAssessment?.level ?? null).level,
+      selfLevel: prevSkill?.selfLevel ?? '未声明',
+      evidenceCount: prevEvidenceIds.length,
+      summary: prevAssessment?.summary,
+    };
+  })();
+
   const existingSkillIndex = profile.skills.findIndex((s) => s.name === session.skillName);
   const skills: SkillItem[] = profile.skills.slice();
   const nextSelfLevel = levelToSelfLevel(level);
@@ -751,7 +896,7 @@ export async function evaluateAssessment(input: EvaluateInput): Promise<Evaluate
     warnings.push(`当前等级是「${SKILL_LEVEL_LABEL[level]}」，建议只放进「待学习」，暂时不要写进简历。`);
   }
 
-  return { assessment, evidence: derived.evidence, updatedProfile, trace, warnings: unique(warnings) };
+  return { assessment, evidence: derived.evidence, updatedProfile, trace, warnings: unique(warnings), before };
 }
 
 // ---------------------------------------------------------------------------
@@ -766,18 +911,101 @@ export interface PendingSkill {
   /** 来自岗位要求的条数 */
   requirementCount: number;
   importance: 'high' | 'medium' | 'low';
+  /**
+   * v0.6：这个技能现在是什么状态。
+   *
+   * 原来这里只有一个 `assessed: boolean`，而它**只被当成排序权重**（priority +100），
+   * 从来没有用于过滤 —— 于是用户问过的技能照样出现在「建议先问这些」里，
+   * 旁边还挂着一个可点的「开始问诊」。数据没丢，但观感是「要求你重填一遍」。
+   *
+   * 拆成三态是因为它们该给的动作不同：
+   *   fresh      从没问过        → 该问
+   *   assessed   问过且结论还在   → **不该再出现在可点列表里**，只该展示结论
+   *   stale      问过但已过时     → 该问，但必须说清「你上次答的是 X」
+   */
+  state: 'fresh' | 'assessed' | 'stale';
+  /** state === 'stale' 时，上次结论里记下的等级 */
+  previousLevel?: string;
+  /** state === 'stale' 时，为什么判定为过时（要直接展示给用户，不能只写「过时了」） */
+  staleReason?: string;
+}
+
+/** 用户主动标记「这条结论我想重答」时，档案上打的戳 */
+export interface StaleMark {
+  skillName: string;
+  reason: string;
+  createdAt: string;
+}
+
+/**
+ * 判断一条已有结论现在算不算「仍在生效」。
+ *
+ * 判定口径由用户在设置页决定（ReviewPreferences.stalePolicy），这里只负责执行。
+ * 之所以不写死成「90 天」：三个月前答得不好，不代表现在想改口；
+ * 三个月前答得很好，也不代表能力退化了。时间线只能当提醒，不能当判据。
+ */
+export function assessFreshness(
+  assessment: { skillName: string; createdAt: string } | undefined,
+  job: JobRequirement | null,
+  mark: StaleMark | undefined,
+  prefs: ReviewPreferences = DEFAULT_REVIEW_PREFERENCES,
+  now = new Date(),
+): { fresh: boolean; reason?: string } {
+  if (!assessment) return { fresh: false };
+
+  // 用户主动标过想重答 —— 这是最强的一条信号，任何策略下都算过时
+  if (mark) return { fresh: false, reason: `你自己标了想重答：${mark.reason}` };
+
+  if (prefs.stalePolicy === 'never') return { fresh: true };
+
+  // 事实维度：这个技能的岗位要求还在吗？要求变了说明上下文变了
+  if (job) {
+    const stillRequired = (job.items ?? []).some((item) => item.keywords.some((k) => {
+      const def = resolveSkill(k);
+      return def ? def.name === assessment.skillName : k === assessment.skillName;
+    }));
+    if (!stillRequired) {
+      return { fresh: false, reason: '当前岗位的要求里已经不再提这项了' };
+    }
+  }
+
+  if (prefs.stalePolicy === 'by_change_and_age') {
+    const days = Math.floor((now.getTime() - new Date(assessment.createdAt).getTime()) / 86_400_000);
+    if (Number.isFinite(days) && days > prefs.staleAfterDays) {
+      return { fresh: false, reason: `这条结论是 ${days} 天前做的，要不要再确认一次` };
+    }
+  }
+
+  return { fresh: true };
 }
 
 /**
  * 推荐问诊顺序。
+ *
  * 排序依据：岗位高重要度要求里「系统判不了」的能力优先 —— 即
  * 没有证据的（gap）> 只有自我声明的（lacking_evidence）> 已有证据的（不必问）。
+ *
+ * v0.6 起**只返回该问的**：已问过且结论仍生效的技能会被移出列表，
+ * 改由 `assessedSkillsFor()` 提供只读展示。这样推荐列表里的每一项都是真能推进的。
  */
-export function pendingSkillsFor(profile: CandidateProfile, job: JobRequirement | null): PendingSkill[] {
-  const map = new Map<string, { count: number; importance: 'high' | 'medium' | 'low'; hasEvidence: boolean; assessed: boolean }>();
-  const importanceRank = { high: 0, medium: 1, low: 2 } as const;
+export function pendingSkillsFor(
+  profile: CandidateProfile,
+  job: JobRequirement | null,
+  options: {
+    prefs?: ReviewPreferences;
+    marks?: StaleMark[];
+    now?: Date;
+  } = {},
+): PendingSkill[] {
+  const prefs = options.prefs ?? DEFAULT_REVIEW_PREFERENCES;
+  const now = options.now ?? new Date();
+  const markMap = new Map((options.marks ?? []).map((m) => [m.skillName, m]));
 
-  const assessedNames = new Set((profile.assessments ?? []).map((a) => a.skillName));
+  const assessments = profile.assessments ?? [];
+  const assessmentMap = new Map(assessments.map((a) => [a.skillName, a]));
+
+  const map = new Map<string, { count: number; importance: 'high' | 'medium' | 'low'; hasEvidence: boolean }>();
+  const importanceRank = { high: 0, medium: 1, low: 2 } as const;
 
   const consider = (skillName: string) => {
     const def = resolveSkill(skillName);
@@ -787,8 +1015,8 @@ export function pendingSkillsFor(profile: CandidateProfile, job: JobRequirement 
       (e) => e.skills.includes(name) || textMentionsSkill(name, e.content) || textMentionsSkill(name, e.title),
     );
     const hasEvidence = evidence.length > 0;
-    const current = map.get(name) ?? { count: 0, importance: 'low' as const, hasEvidence, assessed: assessedNames.has(name) };
-    map.set(name, { ...current, hasEvidence, assessed: assessedNames.has(name) });
+    const current = map.get(name) ?? { count: 0, importance: 'low' as const, hasEvidence };
+    map.set(name, { ...current, hasEvidence });
   };
 
   for (const item of job?.items ?? []) {
@@ -817,7 +1045,6 @@ export function pendingSkillsFor(profile: CandidateProfile, job: JobRequirement 
           count: 0,
           importance: 'medium',
           hasEvidence: linked.length > 0,
-          assessed: assessedNames.has(skill.name),
         });
       }
     }
@@ -825,12 +1052,66 @@ export function pendingSkillsFor(profile: CandidateProfile, job: JobRequirement 
 
   return Array.from(map.entries())
     .map(([skillName, info]) => {
-      const priority = (info.assessed ? 100 : 0) + (info.hasEvidence ? 20 : 0) + importanceRank[info.importance] * 5 + (info.count > 0 ? 0 : 3);
-      const reason = info.hasEvidence
-        ? '已有部分证据，问诊可以把掌握程度说清楚，顺便补强证据'
-        : '岗位要求提到它，但你的能力库里没有对应证据 —— 这正是最该先问的';
-      return { skillName, reason, priority, requirementCount: info.count, importance: info.importance };
+      const assessment = assessmentMap.get(skillName);
+      const freshness = assessFreshness(assessment, job, markMap.get(skillName), prefs, now);
+      const state: PendingSkill['state'] = !assessment ? 'fresh' : freshness.fresh ? 'assessed' : 'stale';
+      const staleWhy = freshness.reason ?? '情况变了';
+
+      const priority = (info.hasEvidence ? 20 : 0) + importanceRank[info.importance] * 5 + (info.count > 0 ? 0 : 3);
+      const why =
+        state === 'stale'
+          ? `上次问过，但${staleWhy} —— 这次可以重答一次`
+          : info.hasEvidence
+            ? '已有部分证据，问诊可以把掌握程度说清楚，顺便补强证据'
+            : '岗位要求提到它，但你的能力库里没有对应证据 —— 这正是最该先问的';
+
+      return {
+        skillName,
+        reason: why,
+        priority,
+        requirementCount: info.count,
+        importance: info.importance,
+        state,
+        previousLevel: state === 'stale' && assessment ? SKILL_LEVEL_LABEL[assessment.level] : undefined,
+        staleReason: state === 'stale' ? staleWhy : undefined,
+      };
     })
+    // 已问过且结论仍然生效的，直接不进列表 —— 它们由 assessedSkillsFor() 负责展示
+    .filter((row) => row.state !== 'assessed')
     .sort((a, b) => a.priority - b.priority || b.requirementCount - a.requirementCount)
     .slice(0, 12);
+}
+
+/**
+ * 已问过且结论仍然生效的技能（只读展示用）。
+ *
+ * v0.6 新增：以前这些技能只是被 `pendingSkillsFor` 排到列表末尾，
+ * 用户看到的仍是一个可点的「开始问诊」。现在它们走这个出口 ——
+ * 展示上次结论 + 给「重问 / 先留着」两个动作，不再混在待办里。
+ */
+export function assessedSkillsFor(
+  profile: CandidateProfile,
+  job: JobRequirement | null,
+  options: { prefs?: ReviewPreferences; marks?: StaleMark[]; now?: Date } = {},
+): Array<{
+  skillName: string;
+  level: SkillLevel;
+  summary: string;
+  createdAt: string;
+  evidenceCount: number;
+}> {
+  const prefs = options.prefs ?? DEFAULT_REVIEW_PREFERENCES;
+  const now = options.now ?? new Date();
+  const markMap = new Map((options.marks ?? []).map((m) => [m.skillName, m]));
+
+  return (profile.assessments ?? [])
+    .filter((a) => assessFreshness(a, job, markMap.get(a.skillName), prefs, now).fresh)
+    .map((a) => ({
+      skillName: a.skillName,
+      level: a.level,
+      summary: a.summary,
+      createdAt: a.createdAt,
+      evidenceCount: a.producedEvidenceIds?.length ?? 0,
+    }))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }

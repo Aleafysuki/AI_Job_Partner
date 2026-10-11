@@ -17,18 +17,28 @@ import {
   createTranscriber,
   debriefHtmlFileName,
   evaluateAssessment,
+  evidenceKey,
+  finalizeProfile,
   importResume,
   isEnabled,
   newId,
   recomputeJob,
   recomputeProfile,
   recordAnswer,
+  recordDraft,
+  replanQuestions,
   renderDebriefHtml,
   runMatchPipeline,
   segmentProgress,
   sessionTranscript,
   SKILL_LEVEL_LABEL,
   planAssessmentSession,
+  summarizeAnswer,
+  summaryToEvidence,
+  carryOverAnswers,
+  judgeTrainingAnswer,
+  parkTrainingItem,
+  TRAINING_EVIDENCE_WHY,
   turnsFromSegment,
   type AiMessage,
   type AiPurpose,
@@ -36,7 +46,9 @@ import {
   type AiTrace,
   type AnalysisReport,
   type AnonymizeReport,
+  type AnswerSummary,
   type AssessSession,
+  type CandidateEvidence,
   type CandidateProfile,
   type CaptureSegment,
   type EvaluateOutput,
@@ -46,6 +58,8 @@ import {
   type MergeReport,
   type SelfScore,
   type StepStatus,
+  type SummaryField,
+  type TrainingJudgement,
   type TrainingPlan,
   type WorkspaceSnapshot,
 } from '@aijob/core';
@@ -168,10 +182,16 @@ export interface AppStore {
   assessSession: AssessSession | null;
   /** v0.2：最近一次问诊的评估结论 */
   assessResult: EvaluateOutput | null;
+  /** v0.6：从磁盘恢复出来的进行中会话（界面上要提示「上次答到一半」） */
+  assessResumed: boolean;
+  /** v0.6：回答整理结果，等用户逐条确认后才写进档案 */
+  assessSummary: AnswerSummary | null;
   /** v0.2：最近一次导入的合并报告（告诉用户新增了什么、保留了什么） */
   lastMergeReport: MergeReport | null;
   /** v0.3：本次问诊的出题元信息 */
   assessMeta: AssessMeta | null;
+  /** v0.6：训练判定结果（给用户看「还差哪」而不是让他猜） */
+  trainingJudge: Record<string, TrainingJudgement>;
 
   // ---- v0.2 追加：面试复盘 ----
   /** 当前选中/进行中的面试会话 */
@@ -227,14 +247,33 @@ export interface AppStore {
     questionId: string,
     answer: { text?: string; choiceIndex?: number; skipped?: boolean; skipReason?: 'not_done' | 'cant_recall' },
   ) => void;
+  /** v0.6：草稿随输入变化写入会话（切页不丢正在写的那一题） */
+  draftAssess: (draft: NonNullable<AssessSession['draft']> | undefined) => void;
   finishAssess: () => Promise<void>;
   cancelAssess: () => void;
-  /** v0.3：重新出题（用户在起始页换一种问法） */
+  /** v0.6：换未答的题，**保留已答的答案**（之前是重开会话，已答的全丢） */
   replanAssess: () => Promise<void>;
+  /** v0.6：从磁盘恢复上次没答完的会话 */
+  resumeAssess: () => Promise<void>;
+  /** v0.6：把回答交给 AI 整理（先只出草稿，不写档案） */
+  summarizeAssess: () => Promise<void>;
+  /** v0.6：用户在审核界面逐条改写/删除字段 */
+  editSummaryField: (field: 'headline' | 'scenario' | 'approach' | 'outcome', patch: Partial<SummaryField> | null) => void;
+  /** v0.6：把用户确认后的内容写进档案 */
+  applySummary: () => Promise<void>;
+  /** v0.6：标记「这条问诊结论想重答」 */
+  markStale: (skillName: string, reason: string) => Promise<void>;
+  unmarkStale: (skillName: string) => Promise<void>;
 
   // v0.2 薄弱项训练
   generateTraining: () => Promise<void>;
-  updateTrainingItem: (itemId: string, patch: { userAnswer?: string; selfScore?: SelfScore; markReviewed?: boolean }) => Promise<void>;
+  updateTrainingItem: (itemId: string, patch: { userAnswer?: string; selfScore?: SelfScore; markReviewed?: boolean; followUpCount?: number }) => Promise<void>;
+  /** v0.6：判定当前答案是否达标，并落盘判定结果 */
+  judgeTraining: (itemId: string) => Promise<void>;
+  /** v0.6：把训练回答补成证据写进档案 */
+  submitTrainingEvidence: (itemId: string) => Promise<void>;
+  /** v0.6：判定不过但用户不想继续 —— 先放着，答案一个字都不删 */
+  parkTraining: (itemId: string, reason: string) => Promise<void>;
   deleteTrainingPlan: (id: string) => Promise<void>;
 
   // ---- v0.2 追加：面试复盘 ----
@@ -474,8 +513,11 @@ export const useApp = create<AppStore>((set, get) => {
     confirm: null,
     assessSession: null,
     assessResult: null,
+    assessResumed: false,
+    assessSummary: null,
     lastMergeReport: null,
     assessMeta: null,
+    trainingJudge: {},
 
     debriefSession: null,
     debriefReport: null,
@@ -716,7 +758,7 @@ export const useApp = create<AppStore>((set, get) => {
         set({ toast: toastOf('error', '请先建立能力档案') });
         return;
       }
-      set({ busy: 'assess', assessResult: null, assessSession: null, assessMeta: null });
+      set({ busy: 'assess', assessResult: null, assessSummary: null, assessResumed: false });
       try {
         const planned = await planAssessmentSession({
           profile,
@@ -725,19 +767,23 @@ export const useApp = create<AppStore>((set, get) => {
           compact,
           gateway: createPipelineGateway(gatewayOptions()),
         });
+        const session: AssessSession = {
+          id: newId('assess'),
+          profileId: profile.id,
+          skillName,
+          jobId: ws?.activeJob()?.id,
+          jobTitle: ws?.activeJob()?.jobTitle,
+          questions: planned.questions,
+          answers: [],
+          status: 'draft',
+          startedAt: new Date().toISOString(),
+        };
+        // v0.6：会话一开就落盘。之前只在 finishAssess 落盘，
+        // 于是「开一场问诊 → 中途关掉应用」等于前面的功夫全白费
+        await ws?.upsertAssessSession(session);
         set({
           busy: null,
-          assessSession: {
-            id: newId('assess'),
-            profileId: profile.id,
-            skillName,
-            jobId: ws?.activeJob()?.id,
-            jobTitle: ws?.activeJob()?.jobTitle,
-            questions: planned.questions,
-            answers: [],
-            status: 'draft',
-            startedAt: new Date().toISOString(),
-          },
+          assessSession: session,
           assessMeta: {
             shape: planned.shape,
             shapeLabel: planned.shapeLabel,
@@ -752,16 +798,68 @@ export const useApp = create<AppStore>((set, get) => {
       }
     },
 
+    /**
+     * v0.6：换一套**未答的**题，已答的原样保留。
+     *
+     * 之前这里是 `await startAssess(session.skillName)` —— 而 startAssess 会
+     * `set({ assessSession: null })` 后重开一个会话，于是**已答的全部被清空**。
+     * UI 上的文案是「换一套问题」，用户以为只是换题，结果把一晚上的回答弄没了。
+     * 这是全项目唯一一处「用户点一个看起来无害的按钮就丢数据」的地方。
+     */
     async replanAssess() {
+      const ws = get().ws;
       const session = get().assessSession;
+      const profile = ws?.activeProfile();
       if (!session) return;
-      await get().startAssess(session.skillName);
+      if (session.answers.length > 0 && !get().confirm) return; // 交互由界面的 confirm 承担
+      const next = replanQuestions(session, { profile });
+      if (!next) {
+        say('info', '没有更多可换的题目了 —— 已经答完，或者题库对这一项没有更多问法了。');
+        return;
+      }
+      set({ assessSession: next });
+      await ws?.upsertAssessSession(next);
+      sync();
+      say(
+        'success',
+        `已换 ${next.replacedQuestions?.length ?? 0} 道未答的题，你已答的 ${session.answers.length} 道题原样保留。`,
+      );
     },
 
     answerAssess(questionId, answer) {
+      const ws = get().ws;
       const session = get().assessSession;
       if (!session) return;
-      set({ assessSession: recordAnswer(session, { questionId, ...answer }) });
+      const next = recordAnswer(session, { questionId, ...answer });
+      set({ assessSession: next });
+      // v0.6：答完一题立刻落盘。这是「不丢」的全部意义所在 ——
+      // 只要他不关应用，他答过的每一道题都在磁盘上
+      void ws?.upsertAssessSession(next);
+    },
+
+    draftAssess(draft) {
+      const ws = get().ws;
+      const session = get().assessSession;
+      if (!session) return;
+      const next = recordDraft(session, draft);
+      set({ assessSession: next });
+      // 草稿落盘但不强制写盘：边打字边写 SQLite 会卡，
+      // 节流到切页时由 flushAssessSession 强制写一次
+      void ws?.upsertAssessSession(next, { persist: false });
+    },
+
+    async resumeAssess() {
+      const ws = get().ws;
+      const profile = ws?.activeProfile();
+      if (!ws || !profile) return;
+      const session = ws.activeAssessSession(profile.id);
+      if (!session) {
+        set({ toast: toastOf('info', '没有找到没答完的问诊') });
+        return;
+      }
+      set({ assessSession: session, assessResumed: true });
+      sync();
+      say('info', `已恢复上次的问诊：「${session.skillName}」，${session.answers.length} 道题已答。`);
     },
 
     async finishAssess() {
@@ -778,12 +876,28 @@ export const useApp = create<AppStore>((set, get) => {
           gateway: createPipelineGateway(gatewayOptions()),
         });
         await ws.upsertProfile(result.updatedProfile);
-        await ws.persist();
+        // v0.6：before/after 落盘。之前 before 只在函数返回值里飘过，
+        // 关掉页面就没了，用户回到档案页仍然看不到「这次问诊改了什么」
+        await ws.addAssessResult({
+          assessment: result.assessment,
+          before: {
+            existed: result.before.existed,
+            level: result.before.level,
+            selfLevel: result.before.selfLevel,
+            evidenceCount: result.before.evidenceCount,
+            summary: result.before.summary,
+          },
+          evidenceIds: result.assessment.producedEvidenceIds,
+          createdAt: result.assessment.createdAt,
+        });
+        await ws.deleteAssessSession(session.id);
         sync();
         set({
           busy: null,
           assessResult: result,
+          assessSummary: null,
           assessSession: null,
+          assessResumed: false,
           warnings: result.warnings,
           toast: toastOf(
             'success',
@@ -798,7 +912,101 @@ export const useApp = create<AppStore>((set, get) => {
     },
 
     cancelAssess() {
-      set({ assessSession: null, assessResult: null, assessMeta: null });
+      const ws = get().ws;
+      const session = get().assessSession;
+      // 放弃会话要删掉磁盘上那份，否则下次进页面会「恢复」一个用户已放弃的问诊
+      if (session) void ws?.deleteAssessSession(session.id);
+      set({ assessSession: null, assessResult: null, assessMeta: null, assessSummary: null, assessResumed: false });
+    },
+
+    // ------------------------------------------------------------------
+    // v0.6 回答整理 → 用户逐条审核 → 写进档案
+    // ------------------------------------------------------------------
+
+    async summarizeAssess() {
+      const ws = get().ws;
+      const session = get().assessSession;
+      if (!session) return;
+      set({ busy: 'assess' });
+      try {
+        const summary = await summarizeAnswer({
+          answers: session.answers.map((a) => ({ layer: a.layer, text: a.text, skipped: a.skipped })),
+          skillName: session.skillName,
+          gateway: createPipelineGateway(gatewayOptions()),
+        });
+        if (summary.trace) get().ws?.addTrace(summary.trace);
+        set({ busy: null, assessSummary: summary });
+        if (summary.usable.length === 0) {
+          say('info', '这次没有可整理的内容 —— 至少要回答「在什么场景下用过它」这一题。');
+        }
+      } catch (err) {
+        set({ busy: null, toast: toastOf('error', `整理失败：${(err as Error).message}`) });
+      }
+    },
+
+    editSummaryField(field, patch) {
+      const summary = get().assessSummary;
+      if (!summary) return;
+      const current = summary[field];
+      // null 表示用户删掉这一条 —— 这是合法操作，不是异常
+      const next = patch === null ? (current ? { ...current, rejected: true } : null) : current ? { ...current, ...patch, edited: true } : null;
+      set({ assessSummary: { ...summary, [field]: next } as AnswerSummary });
+    },
+
+    async applySummary() {
+      const ws = get().ws;
+      const summary = get().assessSummary;
+      const session = get().assessSession;
+      const profile = ws?.activeProfile();
+      if (!ws || !summary || !session || !profile) return;
+
+      const evidence = summaryToEvidence({
+        skillName: session.skillName,
+        jobTitle: session.jobTitle,
+        summary,
+        newId,
+      });
+
+      set({ busy: 'assess' });
+      try {
+        if (!evidence) {
+          // 全部拒绝是合法结果，不是失败
+          await ws.deleteAssessSession(session.id);
+          sync();
+          set({ busy: null, assessSummary: null, assessSession: null, assessResumed: false });
+          say('info', '没有写入任何内容 —— 你的档案保持原样。');
+          return;
+        }
+
+        const next: CandidateProfile = {
+          ...profile,
+          evidence: [...profile.evidence, evidence],
+          updatedAt: new Date().toISOString(),
+        };
+        await ws.upsertProfile(finalizeProfile(next));
+        await ws.deleteAssessSession(session.id);
+        sync();
+        set({ busy: null, assessSummary: null, assessSession: null, assessResumed: false });
+        say('success', '已按你确认的内容写入能力库（来源标为「能力问诊」，强度封顶为「中」）。');
+      } catch (err) {
+        set({ busy: null, toast: toastOf('error', `写入失败：${(err as Error).message}`) });
+      }
+    },
+
+    async markStale(skillName, reason) {
+      const ws = get().ws;
+      if (!ws) return;
+      await ws.addStaleMark({ skillName, reason, createdAt: new Date().toISOString() });
+      sync();
+      say('info', `已标记「${skillName}」，下次进入问诊会提示你要不要重答。`);
+    },
+
+    async unmarkStale(skillName) {
+      const ws = get().ws;
+      if (!ws) return;
+      await ws.removeStaleMark(skillName);
+      sync();
+      say('info', `已取消「${skillName}」的重答标记。`);
     },
 
     // ------------------------------------------------------------------
@@ -833,15 +1041,27 @@ export const useApp = create<AppStore>((set, get) => {
           gateway: createPipelineGateway(gatewayOptions()),
         });
         // 同一岗位只保留最新一份计划，避免越攒越多
+        // v0.6：删之前先把已写的答案搬过去。之前直接删重建，
+        // 用户写了一整晚的回答在点「重新生成」的那一刻全没了 —— 
+        // 与「换一套问题清空答案」是同一类错误。
         const existing = ws.trainingPlanForJob(job.id);
+        const carried = existing?.items.some((i) => i.userAnswer || i.evidenceIds?.length)
+          ? carryOverAnswers(built.plan, existing)
+          : built.plan;
         if (existing) await ws.deleteTrainingPlan(existing.id);
-        await ws.upsertTrainingPlan(built.plan);
+        await ws.upsertTrainingPlan(carried);
+        const kept = carried.items.filter((i) => i.userAnswer).length;
         sync();
         set({
           busy: null,
           route: 'training',
           warnings: built.warnings,
-          toast: toastOf('success', `已生成 ${built.plan.items.length} 道训练题`),
+          toast: toastOf(
+            'success',
+            kept > 0
+              ? `已重新生成 ${carried.items.length} 道训练题，其中 ${kept} 道你写过的答案已保留`
+              : `已生成 ${carried.items.length} 道训练题`,
+          ),
         });
       } catch (err) {
         set({ busy: null, toast: toastOf('error', `生成训练计划失败：${(err as Error).message}`) });
@@ -856,6 +1076,120 @@ export const useApp = create<AppStore>((set, get) => {
       if (!plan) return;
       await ws.upsertTrainingPlan(answerTrainingItem(plan, itemId, patch));
       sync();
+    },
+
+    /**
+     * v0.6：判定这一题的答案是否达标。
+     *
+     * 判定结果同时写进训练计划（status / passedAt / lastJudgeHeadline），
+     * 判据明细留在 store 的 `trainingJudge` 里供界面显示 ——
+     * 设置页关掉「显示判定依据」只影响明文展示，判定本身照常发生。
+     */
+    async judgeTraining(itemId) {
+      const ws = get().ws;
+      const job = ws?.activeJob();
+      if (!ws || !job) return;
+      const plan = ws.trainingPlanForJob(job.id);
+      if (!plan) return;
+      const item = plan.items.find((i) => i.id === itemId);
+      if (!item || !item.userAnswer || !item.userAnswer.trim()) {
+        say('info', '先写点东西再判定 —— 空着没有可判的。');
+        return;
+      }
+
+      const judgement = judgeTrainingAnswer({
+        answer: item.userAnswer,
+        item,
+        followUpCount: item.followUpCount ?? 0,
+      });
+
+      await ws.upsertTrainingPlan(
+        answerTrainingItem(plan, itemId, { judged: { passed: judgement.verdict === 'passed', headline: judgement.headline } }),
+      );
+      set({ trainingJudge: { ...get().trainingJudge, [itemId]: judgement } });
+      sync();
+
+      if (judgement.verdict === 'passed') {
+        say('success', '这题答到了。它只能证明「你现在能讲清」—— 想确认岗位结论有没有变，去重跑一次匹配。');
+      } else if (judgement.exhausted) {
+        say('info', `还差一点：${judgement.headline}。可以先放着（答案会留着），也可以补一句再判。`);
+      }
+    },
+
+    /**
+     * v0.6：把训练回答补成证据写进能力库。
+     *
+     * 三条约束在这里生效：
+     *   1. origin 固定 'qa' → 强度封顶「中」（MAX_STRENGTH_BY_ORIGIN）
+     *      练到会讲不等于真做过，这条不能在训练这里松掉
+     *   2. 只能挂到**这道题对应的那一个技能**上，不允许顺手改别的
+     *   3. 走与简历导入同一条去重键（evidenceKey），不会重复堆
+     */
+    async submitTrainingEvidence(itemId) {
+      const ws = get().ws;
+      const job = ws?.activeJob();
+      const profile = ws?.activeProfile();
+      if (!ws || !job || !profile) return;
+      const plan = ws.trainingPlanForJob(job.id);
+      if (!plan) return;
+      const item = plan.items.find((i) => i.id === itemId);
+      if (!item || !item.userAnswer || !item.userAnswer.trim()) {
+        say('info', '先写点东西 —— 空内容不会进能力库。');
+        return;
+      }
+
+      const key = evidenceKey({ kind: 'project', title: `${item.skillName} · 训练补充`, content: item.userAnswer });
+      const dup = profile.evidence.find((e) => evidenceKey(e) === key);
+      if (dup) {
+        say('info', '这条经历已经在档案里了（内容相同），不重复写入。');
+        return;
+      }
+
+      const now = new Date().toISOString();
+      const evidence: CandidateEvidence = {
+        id: newId('evd'),
+        kind: 'project',
+        title: `${item.skillName} · 训练补充`,
+        content: item.userAnswer.trim(),
+        skills: [item.skillName],
+        metrics: [],
+        links: [],
+        timeRange: undefined,
+        strength: 'weak',
+        strengthReason: TRAINING_EVIDENCE_WHY,
+        origin: 'qa',
+        fromJobTitle: job.jobTitle,
+        sourceRef: {
+          kind: 'user',
+          locator: '薄弱项训练（用户自己写的回答）',
+          excerpt: item.userAnswer.trim().slice(0, 160),
+        },
+        editedByUser: true,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      await ws.upsertProfile(
+        finalizeProfile({
+          ...profile,
+          evidence: [...profile.evidence, evidence],
+          updatedAt: now,
+        }),
+      );
+      await ws.upsertTrainingPlan(answerTrainingItem(plan, itemId, { evidenceIds: [evidence.id] }));
+      sync();
+      say('success', '已补进能力库（只挂在这道题对应的技能上）。强度按「中」算 —— 想让它更硬，得补数字或链接。');
+    },
+
+    async parkTraining(itemId, reason) {
+      const ws = get().ws;
+      const job = ws?.activeJob();
+      if (!ws || !job) return;
+      const plan = ws.trainingPlanForJob(job.id);
+      if (!plan) return;
+      await ws.upsertTrainingPlan(parkTrainingItem(plan, itemId, reason));
+      sync();
+      say('info', '已标记「先放着」。你写的答案一个字都没删，随时可以回来继续。');
     },
 
     async deleteTrainingPlan(id) {

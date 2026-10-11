@@ -1,4 +1,5 @@
-import type { WorkspaceSnapshot } from '@aijob/core';
+import type { ReviewPreferences, WorkspaceSnapshot } from '@aijob/core';
+import { pendingSkillsFor } from '@aijob/core';
 import type { Route } from '../state/store';
 
 /**
@@ -83,8 +84,25 @@ export function nextStepFor(snapshot: WorkspaceSnapshot, current: Route): NextSt
 
   const lackEvidence = report.summary.lackingEvidence + report.summary.partial;
   if (lackEvidence >= report.summary.gap) {
+    // v0.6：不能不看问诊进度。
+    // 之前这里只读匹配报告的统计，完全不读 profile.assessments ——
+    // 于是只要匹配没重跑，无论用户已经把所有技能问过多少遍，
+    // 首页永远显示「去做能力问诊」。这不是错，只是无用功的指引。
+    const askable = pendingSkillsFor(profile, job, {
+      prefs: (snapshot.settings as { review?: ReviewPreferences }).review,
+      marks: snapshot.staleMarks,
+    });
+    if (askable.length === 0) {
+      // 已经全问过了 —— 该做的不是再问一遍，而是重跑匹配看结论有没有变
+      return {
+        reason: '岗位要求的技能你已经全部问诊过了。重跑一次匹配，能看到这次问诊有没有改变结论。',
+        action: '重跑匹配分析',
+        route: 'match',
+        level: 'normal',
+      };
+    }
     return {
-      reason: `有 ${unmet} 条要求没完全满足，其中 ${lackEvidence} 条是「说得出但拿不出证据」—— 这一类最快能补上。`,
+      reason: `有 ${unmet} 条要求没完全满足，其中 ${lackEvidence} 条是「说得出但拿不出证据」—— 这一类最快能补上。还有 ${askable.length} 项没问过。`,
       action: '去做能力问诊',
       route: 'interview',
       level: 'normal',

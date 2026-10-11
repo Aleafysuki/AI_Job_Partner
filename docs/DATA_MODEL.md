@@ -223,7 +223,7 @@ Requirement ──┬──▶ Evidence ──▶ Strength ──▶ Assessment 
 
 ```ts
 {
-  schemaVersion: 3,          // v0.2 追加面试复盘：2 → 3（新增 interviewSessions / debriefReports）
+  schemaVersion: 4,          // v0.6：3 → 4（新增 assessSessions / assessResults / staleMarks）
   savedAt, release,
   profiles: CandidateProfile[],
   jobs: JobRequirement[],
@@ -231,11 +231,26 @@ Requirement ──┬──▶ Evidence ──▶ Strength ──▶ Assessment 
   trainingPlans: TrainingPlan[],               // v0.2 新增
   interviewSessions: InterviewDebriefSession[],// v0.2 追加
   debriefReports: InterviewDebriefReport[],    // v0.2 追加
+  assessSessions: StoredAssessSession[],       // v0.6 新增：进行中/未完成的问诊
+  assessResults: StoredAssessResult[],         // v0.6 新增：历史问诊结论（不含 updatedProfile）
+  staleMarks: StaleMark[],                // v0.6 新增：用户自己标的「想重答」
   traces: AiTrace[],         // 最多保留 120 条
   settings: AiSettings,      // v0.2 追加 transcription / capture 两组子配置
+  settings.review?: ReviewPreferences,   // v0.6：三个决策点的用户选择
   ui: { activeProfileId, activeJobId, onboardingCompleted, dismissedHints }
 }
 ```
+
+**为什么问诊会话必须进快照。** 在 v0.6 之前它只活在内存里 ——
+用户答了十几分钟，关掉窗口就全没了。底层存储是单表单key 的 JSON 大字段
+（`main/storage.ts:130`），所以这不是「忘了存」，而是**结构上就存不了**：
+不在 `WorkspaceSnapshot` 里就没有任何机会被写下去。
+
+`StoredAssessResult` 不存 `updatedProfile`：一份归一化后的档案可能有几百 KB，
+而问诊历史只需要「结论 + 当时的等级」，before/after 对比靠 `AssessmentSnapshot` 就够。
+
+`settings.review` 走**深合并**，与 `settings.transcription` / `settings.capture` 同一个理由：
+顶层展开对新增的子对象无效。
 
 **音频不进快照。** `InterviewDebriefSession` 里只有元数据与转写文本；
 录音按 `recordings/<sessionId>/seg-0001.webm` 落在数据目录下。
@@ -250,6 +265,9 @@ Requirement ──┬──▶ Evidence ──▶ Strength ──▶ Assessment 
 | 1 → 2 | evidence 新增 `origin` | 老数据一律补 `'resume'`（否则封顶规则会漏判） |
 | 2 → 3 | snapshot 新增 `interviewSessions` / `debriefReports` | 缺失时补 `[]`；会话缺 `quiet` / `segments` / `turns` 时补默认值 |
 | 2 → 3 | settings 新增 `transcription` / `capture` | **深合并**：顶层展开补不上嵌套对象 |
+| 3 → 4 | snapshot 新增 `assessSessions` / `assessResults` / `staleMarks` | 缺失时补 `[]` |
+| 3 → 4 | `AssessSession` 新增 `draft` / `replacedQuestions` | 缺失时补 `undefined` / `[]` |
+| 3 → 4 | settings 新增 `review` | **深合并**，同上 |
 
 最后一条容易踩：`{ ...empty.settings, ...data.settings }` 这种浅合并对新增的**子对象**是无效的，
 老快照会得到一个 `undefined` 的 `settings.transcription`。所以设置统一走 `normalizeAiSettings()`。
@@ -775,3 +793,114 @@ L1 待验证  只有自我声明，系统判不了
 
 `.metro-app` 必须 `overflow-x: hidden`：分组后每组内部仍是横向可扫的页签行，
 宽度必然超出 393px，不裁剪会让整个页面（连头部色块）都能左右拖动。
+
+---
+
+# v0.6：证据闭环的规则（`engines/skill-interview.ts` / `engines/answer-summary.ts` / `engines/training-judge.ts`）
+
+这一批改的不是新功能，是**一个假闭环**。用户填了问诊、练了训练，但两者都不进能力库，
+于是匹配结论永远不变，而界面上写着「练完去重跑匹配」。用户照做，发现什么都没变 ——
+观感就变成「我填的东西不算数，要我重填」。
+
+## 1. 三态：`fresh` / `assessed` / `stale`
+
+`pendingSkillsFor()` 返回的每一项都带 `state`：
+
+| state | 含义 | 是否出现在待办列表 |
+| --- | --- | --- |
+| `fresh` | 没问过 | 是 |
+| `assessed` | 问过，且结论仍然有效 | **否** —— 由 `assessedSkillsFor()` 只读展示 |
+| `stale` | 问过，但已过时，可重答并显示上次等级 | 是 |
+
+**v0.6 之前 `assessed` 只当排序权重**，所以已问诊的技能照旧列在待办里，
+用户看到的仍是一个可点的「开始问诊」—— 这就是「填了一遍却要求重填」的直接来源。
+
+`staleReason` 由 `assessFreshness()` 判定，优先级从上到下：
+
+| 条件 | 是否过时 | 为什么 |
+| --- | --- | --- |
+| 用户手动标了 `staleMarks` | **是**（任何策略下） | 用户自己说上次答得不准，这是最强的一条信号 |
+| `stalePolicy === 'never'` | 否 | 用户选了「永不过时」 |
+| 这个岗位不再要求它 | 是 | 要求变了，答案的作用域也变了 |
+| `stalePolicy === 'by_change_and_age'` 且超过 `staleAfterDays` | 是 | 默认 90 天 |
+| 默认（`by_change`） | 否 | 只在岗位要求变化或用户主动标记时过时 |
+
+`stalePolicy` / `staleAfterDays` 存在 `settings.review`，**由用户在设置页自决**。
+这三个决策点（过时口径 / 审核布局 / 判据显隐）没有一条是「哪种都对」，它们是价值取舍，
+开发替用户选等于替用户表态。
+
+## 2. 「换一套问题」不能清空已答的
+
+`replanQuestions()` 只换**未答**的题，已答的原样保留，被换掉的题进 `replacedQuestions`。
+
+v0.6 之前 UI 上的文案是「换一套问题」，实现却是调 `startAssess` 重开一个会话，
+于是**已答的全部被清空**。这是全项目唯一一处「点一个看起来无害的按钮就丢用户劳动」的地方，
+而它恰好在答题页顶部最容易点到。全部答完时返回 `null`，界面必须明确说「换不了」，
+不能悄悄返回一个空会话。
+
+## 3. AI 整理的每个字段必须带 `anchor`
+
+`AnswerSummary` 的每个字段（`headline` / `scenario` / `approach` / `outcome`）都有 `anchor`，
+且必须是用户原话的**连续子串**。`anchorIsReal()` 程序校验，对不上就丢弃并把原因写进 `dropped[]`
+给用户看，绝不静默失败。
+
+判定口径是**去空白后子串匹配**：多打几个空格不算「没说过」，
+但**换标点不算**（原话用逗号、anchor 用句号，即使语义一样也判为对不上）。
+这是刻意的偏严方向：宁可丢掉一条整理结果让用户自己补，也不要放进一条
+用户点开原话发现字面不符的条目 —— 那比不给更糟，它会让用户以为系统在编内容。
+
+`summaryToEvidence()` 的三条硬要求：
+`origin: 'qa'`（强度封顶「中」）→ `sourceRef.excerpt` 存**用户确认过的 anchor**
+而不是模型的改写 → 用户改写过的字段 `editedByUser: true`（`finalizeProfile` 跳过它的强度重算）。
+
+## 4. 训练判定只看四件可核对的事
+
+`judgeTrainingAnswer()` 的判据只有四项：
+
+| 判据 | 口径 |
+| --- | --- |
+| 场景 | 出现项目/系统/业务/线上等场景词 |
+| 因果 | 出现「因为/所以/因此/为了/结果」等连接 |
+| 数字载体 | 有数字、百分比、倍、链接、仓库、文档、PR |
+| 要点覆盖 | `referencePoints` 逐条 `includes` |
+
+**表达类问题（条理不清 / 篇幅过长）一律不参与判定** —— 那些是练几次就能改的文风问题，
+写进跨岗位保留的技能等级里对任何岗位的判断都没有贡献（与 v0.4 硬约束 19 同源）。
+
+「有没有答到点」只能用 `includes`，**不能叠 `textMentionsSkill`** ——
+后者只认技能词典内的词，期望点可能是「缓存淘汰策略」这类自定义短语，
+叠上它会把整份期望点都判成缺失。
+
+`passed` 的结论文案必须写清边界：**「它只能证明你现在能讲清，不能证明这个岗位能投了」**。
+判定可以隐藏（设置页开关只控制判据显隐），但判定永远发生 ——
+关掉解释只是让它变成一个不给理由的判决，那才是真的骗人。
+
+## 5. 训练与问诊的证据一律封顶「中」
+
+`TrainingItem.evidenceIds` 是这个产品真闭环的关键：在它出现之前，
+`TrainingItem` 与能力库之间没有任何连接，练完的答案只是一段文本，匹配结论永远不会变。
+
+训练补的证据 `origin: 'qa'` → 强度封顶「中」。理由写在 `TRAINING_EVIDENCE_WHY`：
+**练到能讲清不等于真的做过**。用户补上链接或数字后规则会重算，但封顶依然生效 ——
+自述永远无法自证。
+
+## 6. 重新生成训练计划要搬走旧答案
+
+`carryOverAnswers()` 的匹配键是 `(skillName, weakness)`，**不是题目 id** ——
+重新生成时题目 id 是新分配的，按 id 匹配会一条都对不上，等于没搬。
+`parkTrainingItem()` 只标状态与原因，**答案一个字都不删**。
+
+## 7. before 快照必须在写入之前取
+
+`SkillAssessment` 是**覆盖式**写入的（去重键 `skillName`，后一次覆盖前一次），
+所以评估完成之后再回头查，旧等级已经找不回来了。`EvaluateOutput.before`
+必须在并入能力库之前取，否则界面上没法回答「这次问诊到底改了什么」。
+
+## 8. 问诊证据必须按去重键合并
+
+`mergeQaEvidence()` 复用 `profile-merge.ts` 的 `evidenceKey`
+（`kind | 归一化标题 | 内容前 60 字`）。合并时**保留旧那条的 id** ——
+它被技能的 `evidenceIds` 引用着，换 id 会让引用失效。
+
+v0.6 之前这里是裸数组拼接，「同一个技能问三次」会在档案里留下三条一模一样的证据。
+这不只是难看：档案页的「N 条证据」会被撑大，匹配引擎也会把它们当成三条独立支撑。

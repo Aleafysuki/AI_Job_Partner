@@ -147,6 +147,32 @@ export interface AssessSession {
   status: AssessSessionStatus;
   startedAt: string;
   completedAt?: string;
+  /**
+   * v0.6：当前正在写的那一题的草稿。
+   *
+   * 为什么必须存在会话里而不是组件的 useState：
+   * 之前草稿放在 `SkillInterview.tsx` 的组件状态里，而页面切换时组件被卸载，
+   * 草稿就没了 —— 已答的题还在（存在 session.answers 里），正在写的那题没了。
+   * 用户切个页面回来发现要重打一遍，观感就是「白填了」。
+   */
+  draft?: AssessDraft;
+  /**
+   * v0.6：已经出题但被换掉的题（原题留痕）。
+   *
+   * 「换一套问题」以前是清空全部答案重来（UI 文案说的是换题，做的是重来）。
+   * 现在改成保留已答题、只换未答的题；被换掉的题存到这里，
+   * 界面上要能看见「这道题你已经答过了，不用再答一次」。
+   */
+  replacedQuestions?: AssessQuestion[];
+}
+
+/** 答到一半的草稿：只在「下一题」时才变成正式答案 */
+export interface AssessDraft {
+  questionId: string;
+  text: string;
+  pickedChoice?: string;
+  needsDetail?: boolean;
+  compact?: boolean;
 }
 
 /**

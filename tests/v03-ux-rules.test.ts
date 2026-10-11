@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
+import fs from 'node:fs';
+import * as coreModule from '@aijob/core';
 import {
   BEHAVIORAL_SCALE_OPTIONS,
   CAPABILITIES,
   CURRENT_RELEASE,
   MODEL_PRICING,
   SELF_REPORT_OPTIONS,
+  MemoryStoragePort,
+  WorkspaceStore,
   askShapeOf,
   budgetAdvice,
   buildQuestions,
@@ -536,6 +540,33 @@ describe('v0.3 可用性修正的能力开关', () => {
     'ui.next_step',
   ];
 
+  /**
+   * core 包里**导出**的类型名（interface / type）。
+   *
+   * 类型编译后不存在于运行时，`import * as core` 拿不到，
+   * 所以这一份单独扫源码里的 `export interface` / `export type`。
+   */
+  const capabilityTypes: Set<string> = (() => {
+    const names = new Set<string>();
+    const walk = (dir: string) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = `${dir}/${entry.name}`;
+        if (entry.isDirectory()) walk(full);
+        else if (entry.name.endsWith('.ts')) {
+          const src = fs.readFileSync(full, 'utf8');
+          for (const m of src.matchAll(/^export\s+(?:interface|type)\s+([A-Za-z0-9_]+)/gm)) {
+            names.add(m[1]);
+          }
+        }
+      }
+    };
+    walk('packages/core/src');
+    return names;
+  })();
+
+  /** core 包在运行时的导出表 */
+  const coreExports: Record<string, unknown> = coreModule;
+
   it('八项修正全部在当前版本已启用', () => {
     for (const id of NEW_CAPS) {
       expect(CAPABILITIES.some((c) => c.id === id)).toBe(true);
@@ -543,21 +574,94 @@ describe('v0.3 可用性修正的能力开关', () => {
     }
   });
 
-  it('当前版本下不得存在「已解锁但空壳」的能力', () => {
-    /*
-     * 这条约束的**形式变了，意图没变**。
-     *
-     * 原写法：`expect(CURRENT_RELEASE).toBe('v0.2')` + 四项 assert false。
-     * 那是 2026-10-07 的状态 —— 当时 v0.3 的四项全是空壳，
-     * 所以用「不许提版本号」这个代理指标来防止误解锁。
-     *
-     * 2026-10-08：v0.3 与 v0.4 两批都已实装，CURRENT_RELEASE 合法地提到 v0.4。
-     * 于是代理指标失效了 —— 它现在只会挡住正常的版本推进。
-     *
-     * 换成直接检查：每个已解锁的能力，代码里必须有对应实现。
-     * 这才是本项目真正要防的东西（详见 v03-no-shell.test.ts）。
-     */
-    expect(CURRENT_RELEASE).toBe('v0.4');
+  /**
+   * v0.5 / v0.6 每项能力对应的**具体代码产物**。
+   *
+   * 判据为什么不是「id 字面量在代码里出现过」：
+   * 本项目多数能力**刻意不做门控**（直接实现 + 在能力表里登记约束），
+   * 所以 `isEnabled('ocr.local_inference')` 这类字面量在实现代码里一次都不出现。
+   * 第一版审计脚本正是拿这个当判据，误报了 44 条（见 MEMORY.md硬约束 17）。
+   *
+   * 判据为什么不是「有没有 isEnabled(id) 的门控」：同上，本项目故意不门控。
+   *
+   * 真正能区分「实装」与「空壳」的是**产出**：这项能力对应的那个函数/字段/方法
+   * 必须真的存在。这里逐条列出产物名 —— 把实现删掉，这条断言就会红。
+   */
+  const NEW_RELEASE_ARTIFACTS: Record<string, string[]> = {
+    // v0.5：双端 OCR + 交互式追问
+    'ocr.local_inference': ['assembleOcrText', 'summarizeConfidence', 'OCR_SCRIPT_LABEL'],
+    'ocr.user_verify': ['needsManualReview', 'OCR_LOW_CONFIDENCE', 'OCR_CONFIDENCE_LABEL'],
+    'interview.followup_from_answer': ['extractFollowUpHooks', 'decideFollowUp', 'MAX_FOLLOW_UPS_PER_QUESTION'],
+    // v0.6：证据闭环
+    'assess.persist_progress': ['MemoryStoragePort'],
+    'assess.replan_keeps_answers': ['replanQuestions', 'clearDraft', 'recordDraft'],
+    'assess.filter_assessed': ['pendingSkillsFor', 'assessedSkillsFor', 'assessFreshness'],
+    'assess.evidence_dedupe': ['evidenceKey', 'MAX_STRENGTH_BY_ORIGIN'],
+    'assess.ai_summary_review': ['summarizeAnswer', 'summaryToEvidence', 'anchorIsReal', 'SUMMARY_DISCLAIMER'],
+    'assess.before_after_diff': ['resolveCapabilityLevel', 'CAPABILITY_LEVELS'],
+    'training.submit_evidence': ['TRAINING_EVIDENCE_WHY'],
+    'training.judge_verdict': ['judgeTrainingAnswer', 'TRAINING_EVIDENCE_WHY'],
+    'training.followup_loop': ['MAX_FOLLOW_UPS_PER_QUESTION', 'decideFollowUp'],
+    'training.keep_answers_on_rebuild': ['carryOverAnswers', 'parkTrainingItem'],
+    'review.user_decides': ['normalizeReviewPreferences', 'DEFAULT_REVIEW_PREFERENCES', 'STALE_POLICY_LABEL', 'REVIEW_LAYOUT_LABEL'],
+  };
+
+  /** 类型在编译后不存在于运行时，单独查 —— 用 d.ts 里的声明来验证 */
+  const NEW_RELEASE_TYPES: Record<string, string[]> = {
+    'ocr.user_verify': ['OcrDraft'],
+    'assess.persist_progress': ['AssessDraft'],
+    'assess.filter_assessed': ['StaleMark'],
+    'assess.before_after_diff': ['AssessmentSnapshot'],
+    'training.judge_verdict': ['TrainingJudgement', 'TrainingVerdict'],
+    'review.user_decides': ['ReviewPreferences', 'ReviewLayout', 'StalePolicy'],
+  };
+
+  it('v0.5 / v0.6 新增的每一项能力，对应的产物都真的存在', () => {
+    const core = coreExports as Record<string, unknown>;
+    for (const [id, artifacts] of Object.entries(NEW_RELEASE_ARTIFACTS)) {
+      expect(CAPABILITIES.some((c) => c.id === id), `能力表里没有登记 ${id}`).toBe(true);
+      expect(isEnabled(id), `${id} 在当前版本应该已解锁`).toBe(true);
+
+      // 每个产物都必须真的存在。只登记在能力表里、产物却不存在 = 空壳：
+      // 设置页里点得开，进去什么都没有（v0.3 那次就是这样被发现的）
+      for (const name of artifacts) {
+        expect(core[name], `能力「${id}」登记了，但产物 ${name} 不存在 —— 这是空壳`).toBeDefined();
+      }
+    }
+  });
+
+  /**
+   * 落在 `WorkspaceStore` **实例方法**上的能力产物。
+   *
+   * 这些不是模块导出，只能在实例上查 —— 所以单独一组，
+   * 否则会被当成「空壳」，而实际上它们是这批能力真正的落盘实现。
+   */
+  const STORE_METHOD_ARTIFACTS: Record<string, string[]> = {
+    'assess.persist_progress': ['upsertAssessSession', 'assessSessionsFor', 'activeAssessSession', 'deleteAssessSession', 'addAssessResult', 'latestAssessResult', 'addStaleMark', 'removeStaleMark'],
+    'review.user_decides': ['updateReviewPreferences', 'reviewPreferences'],
+  };
+
+  it('上面这些能力依赖的类型也都在（类型编译后不在运行时，单独查）', () => {
+    for (const [id, types] of Object.entries(NEW_RELEASE_TYPES)) {
+      expect(isEnabled(id)).toBe(true);
+      for (const name of types) {
+        expect(capabilityTypes.has(name), `能力「${id}」依赖的类型 ${name} 不存在`).toBe(true);
+      }
+    }
+  });
+
+  it('落到存储实例上的能力，方法也真的存在', async () => {
+    const store = new WorkspaceStore(new MemoryStoragePort());
+    const anyStore = store as unknown as Record<string, unknown>;
+    for (const [id, methods] of Object.entries(STORE_METHOD_ARTIFACTS)) {
+      expect(isEnabled(id)).toBe(true);
+      for (const name of methods) {
+        expect(
+          typeof anyStore[name],
+          `能力「${id}」登记了，但存储方法 ${name} 不存在 —— 这是空壳`,
+        ).toBe('function');
+      }
+    }
   });
 
   it('新能力全部挂在 v0.2（修复已交付功能），而不是 v0.3', () => {

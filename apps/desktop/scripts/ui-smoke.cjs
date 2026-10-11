@@ -364,9 +364,15 @@ async function main() {
   results.shotProfileAssess = await shoot(win, '10-档案-问诊结论');
   results.profileAssess = await win.webContents.executeJavaScript(`(() => {
     const text = document.body.innerText;
+    const buttons = Array.from(document.querySelectorAll('button')).map((b) => (b.textContent || '').trim());
     return {
       listHasSkill: text.includes('问诊结论：') || /置信度/.test(text),
       hasSignals: /场景 \\d\\/3/.test(text),
+      // v0.6：结论区不能再是完全只读。用户发现上次答得不准时，
+      // 必须能不删技能就重答 —— 删掉重来会连带丢掉这一项累计的证据。
+      hasReanswer: buttons.includes('重新问一遍'),
+      hasMarkStale: buttons.includes('想重答'),
+      saysEvidenceKept: text.includes('之前补过的证据会保留'),
     };
   })()`);
 
@@ -426,6 +432,86 @@ async function main() {
     const m = text.match(/自评均分\\s*([\\d.]+)/);
     return { averageScore: m ? Number(m[1]) : null, hasAnsweredBadge: text.includes('已作答') };
   })()`);
+
+  // -------------------------------------------------------------------------
+  // 6b) v0.6：训练判定 + 补进能力库 + 设置页的三个决策点
+  // -------------------------------------------------------------------------
+  // 任务书里最关键的一条：训练原来练完什么都不发生，
+  // 而界面上写着「练完去重跑匹配」—— 那是一个必然让人失望的假闭环。
+  // 单测验不到按钮真的能点，所以这一段必须在真实浏览器里走一遍。
+  const trainingLoop = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const bodyText = () => document.body.innerText;
+    const btn = (label) =>
+      Array.from(document.querySelectorAll('button')).find((b) => (b.textContent || '').trim() === label);
+
+    const out = {};
+    // 先按「判定是否答到」
+    const judge = btn('判定是否答到');
+    out.hasJudgeButton = Boolean(judge);
+    if (judge) {
+      judge.click();
+      await sleep(700);
+      out.hasVerdict = /还差 \\d+ 处|要点都答到了|还没开始/.test(bodyText());
+      // 判据清单必须逐项给出「有/缺」，且要说清「不判断对不对」
+      out.hasReasons = bodyText().includes('缺场景') || bodyText().includes('说清了在哪个项目');
+      out.hasBoundary = bodyText().includes('不判断你的回答对不对');
+      // 「先把经历补进能力库」必须真的在页面上（这才是闭环的那一步）
+      out.hasSubmitEvidence = Boolean(btn('把这段经历补进档案'));
+      out.hasPark = Boolean(btn('先放着'));
+    }
+    return out;
+  })()`);
+  results.trainingLoop = trainingLoop;
+  results.shotTrainingJudge = await shoot(win, '13b-薄弱项训练-判定');
+
+  // 补进能力库 → 回档案页确认真的多了一条证据
+  const submitted = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const btn = (label) =>
+      Array.from(document.querySelectorAll('button')).find((b) => (b.textContent || '').trim() === label);
+    const submit = btn('把这段经历补进档案');
+    if (!submit) return { ok: false, reason: 'no submit button' };
+    submit.click();
+    await sleep(1200);
+    return { ok: document.body.innerText.includes('已补进能力库') || document.body.innerText.includes('已经在档案里') };
+  })()`);
+  results.trainingSubmit = submitted;
+
+  // 设置页的三个决策点：它们是价值取舍，必须由用户自决，不能由开发拍板
+  await clickByText(win, '设置');
+  await waitFor(win, `document.body.innerText.includes('AI Provider') || document.body.innerText.includes('模型')`, 10000, '设置页');
+  const reviewTab = await win.webContents.executeJavaScript(`(() => {
+    const tab = Array.from(document.querySelectorAll('button, [role="tab"], a')).find(
+      (el) => (el.textContent || '').trim() === '判断与呈现',
+    );
+    if (!tab) return { found: false };
+    tab.click();
+    return { found: true };
+  })()`);
+  if (reviewTab.found) {
+    await delay(500);
+    await settle(win);
+  }
+  results.reviewSettings = await win.webContents.executeJavaScript(`(() => {
+    const text = document.body.innerText;
+    const radios = Array.from(document.querySelectorAll('input[type="radio"], button[role="radio"]'));
+    const labels = radios.map((r) => (r.textContent || r.getAttribute('aria-label') || '').trim());
+    return {
+      found: ${JSON.stringify(reviewTab.found)},
+      hasStalePolicy: text.includes('什么时候算过时') || text.includes('过时'),
+      hasLayout: text.includes('整理结果怎么呈现') || text.includes('逐条确认'),
+      // 判据显隐开关：隐藏的是解释，不是判定 —— 这句必须在页面上。
+  // 断言用页面上的原话（「判定照常发生」+「不信任」两个关键点），
+  // 不要写成自己记忆里的措辞 —— 那种断言会在文案微调后静默失效。
+      saysHideIsNotSkip: text.includes('判定照常发生') || text.includes('判定本身永远会发生'),
+      saysNotATrustIssue: text.includes('不信任'),
+      radioCount: labels.filter(Boolean).length,
+    };
+  })()`);
+  results.shotReviewSettings = await shoot(win, '13c-设置-判断与呈现');
+
+  await clickByText(win, '简历匹配');
 
   // 7) 训练题应从匹配结果里来：回到报告页确认有对应结论
   await clickByText(win, '简历匹配');
@@ -796,6 +882,50 @@ async function main() {
   if (prep.hasPitfall !== true) v03Failures.push('面试问答缺少「最容易踩的坑」');
   if (prep.hasFollowUp !== true) v03Failures.push('面试问答缺少「对方大概率接着问」');
   if (!(prep.kinds || []).includes('动机类')) v03Failures.push('「为什么想加入我们」没有被归为动机类');
+
+  /* --- v0.6：证据闭环 --- *
+   * 这一批修的是「用户填的东西不算数」：
+   * 问诊推荐列表从不过滤已问诊的技能（观感上等于「要求重填」）、
+   * 「换一套问题」实际清空全部答案、训练练完什么都不回写能力库。
+   * 单测能验core 的规则，但验不到「按钮真的在页面上、点了真的有反应」，
+   * 所以下面这几条必须在真实浏览器里验。
+   */
+  const v06Failures = [];
+  const pa = results.profileAssess || {};
+  if (pa.hasReanswer !== true) v06Failures.push('档案的问诊结论区没有「重新问一遍」入口（结论仍然完全只读）');
+  if (pa.hasMarkStale !== true) v06Failures.push('档案的问诊结论区没有「想重答」入口');
+  if (pa.saysEvidenceKept !== true) {
+    v06Failures.push('重答入口没有说清「之前补过的证据会保留」—— 用户会以为重答要付出清空的代价');
+  }
+
+  const tl = results.trainingLoop || {};
+  if (tl.hasJudgeButton !== true) v06Failures.push('训练页没有「判定是否答到」按钮（训练仍然没有终点）');
+  if (tl.hasVerdict !== true) v06Failures.push('点了判定但页面没有给出结论');
+  if (tl.hasReasons !== true) v06Failures.push('判定没有逐项列出「有/缺」—— 用户只能看到一个不给理由的判决');
+  if (tl.hasBoundary !== true) v06Failures.push('训练页没有写清「不判断你的回答对不对」');
+  if (tl.hasSubmitEvidence !== true) {
+    v06Failures.push('训练页没有「把这段经历补进档案」—— 训练仍然不回写能力库，是假闭环');
+  }
+  if (tl.hasPark !== true) v06Failures.push('判定不过时没有「先放着」的出口（用户只能反复重写同一段答案）');
+
+  const ts = results.trainingSubmit || {};
+  if (ts.ok !== true) v06Failures.push(`把训练答案补进能力库没有生效：${ts.reason || '无成功提示'}`);
+
+  const rs = results.reviewSettings || {};
+  if (rs.found !== true) v06Failures.push('设置页没有「判断与呈现」页签（三个决策点没交给用户自决）');
+  if (rs.hasStalePolicy !== true) v06Failures.push('设置页没有「什么时候算过时」的口径选择');
+  if (rs.hasLayout !== true) v06Failures.push('设置页没有「整理结果怎么呈现」的布局选择');
+  if (rs.saysHideIsNotSkip !== true) {
+    v06Failures.push('判据显隐开关没有说清「判定照常发生」—— 用户会以为关掉就不判了');
+  }
+  if (rs.saysNotATrustIssue !== true) {
+    v06Failures.push('判据显隐说明没有把「不给理由的判决」与「不信任」联系起来');
+  }
+  results.v06Failures = v06Failures;
+  if (v06Failures.length > 0) {
+    throw new Error(`v0.6 断言未通过：\n  - ${v06Failures.join('\n  - ')}`);
+  }
+
   results.v03Failures = v03Failures;
   if (v03Failures.length > 0) {
     throw new Error(`v0.3 断言未通过：\n  - ${v03Failures.join('\n  - ')}`);

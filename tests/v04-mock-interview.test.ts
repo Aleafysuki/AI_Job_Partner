@@ -434,9 +434,11 @@ describe('模拟面试 · 薄弱点回流', () => {
 // ---------------------------------------------------------------------------
 
 describe('v0.4 模拟面试四项能力', () => {
-  it('已解锁 —— 实装完成后 CURRENT_RELEASE 提到了 v0.4', async () => {
+  it('已解锁 —— 四项能力在当前版本都真的开着', async () => {
     const { isEnabled, CURRENT_RELEASE } = await import('@aijob/core');
-    expect(CURRENT_RELEASE).toBe('v0.4');
+    // v0.6 已把 CURRENT_RELEASE 推到 v0.6，这里不再钉具体版本号 ——
+    // 钉版本号只会在下一版再次变红，而真正要防的是「解锁了却没实现」
+    expect(CURRENT_RELEASE).toBe('v0.6');
     for (const id of ['interview.generate', 'interview.mock', 'interview.analyze_answer', 'interview.weak_point_training']) {
       expect(isEnabled(id)).toBe(true);
     }
